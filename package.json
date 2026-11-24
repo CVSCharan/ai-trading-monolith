@@ -1,0 +1,33 @@
+{
+  "name": "groww-trading-system",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "db:generate": "turbo run db:generate --filter=@groww-trading/api",
+    "db:migrate": "turbo run db:migrate --filter=@groww-trading/api",
+    "db:push": "turbo run db:push --filter=@groww-trading/api",
+    "db:studio": "turbo run db:studio --filter=@groww-trading/api",
+    "db:seed": "turbo run db:seed --filter=@groww-trading/api",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "prettier": "^3.3.0",
+    "husky": "^9.0.0",
+    "@types/node": "^20.14.0"
+  },
+  "packageManager": "bun@1.1.0",
+  "engines": {
+    "bun": ">=1.1.0"
+  }
+}
