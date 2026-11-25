@@ -12,6 +12,8 @@ import { pgClient } from './db';
 import { seed } from './db/seed';
 import { authPlugin } from './middleware/auth-middleware';
 import { createRateLimitPlugin } from './middleware/rate-limit-middleware';
+import { wsManager, wsPlugin } from './services/ws-manager';
+import { startBacktestWorker, stopBacktestWorker } from './services/backtest-runner';
 import { userRoutes } from './routes/user';
 import { strategyRoutes } from './routes/strategy';
 import { backtestRoutes } from './routes/backtest';
@@ -46,6 +48,7 @@ const app = new Elysia()
   .use(swagger({ path: '/api-docs' }))
   .use(createRateLimitPlugin({ name: 'api-global', maxRequests: 100, windowMs: 60_000 }))
   .use(authPlugin)
+  .use(wsPlugin)
   .use(userRoutes)
   .use(strategyRoutes)
   .use(backtestRoutes)
@@ -71,14 +74,17 @@ const app = new Elysia()
 
 logger.info({ port: config.port, url: app.server?.hostname }, 'API app started');
 
-// Seed database on startup
+// Seed database & start background services on startup
 seed().catch((err) => {
   logger.error({ err }, 'Database seed failed');
 });
+void wsManager.startPostgresBridge();
+startBacktestWorker();
 
 // Graceful shutdown
 async function shutdown(signal: string) {
   logger.info({ signal }, 'Shutting down API server...');
+  stopBacktestWorker();
   app.stop();
   await pgClient.end();
   process.exit(0);
