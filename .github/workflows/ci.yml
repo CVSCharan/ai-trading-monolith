@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  install-and-typecheck:
+    name: Install & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install
+      - name: Typecheck
+        run: bun run typecheck
+
+  test:
+    name: Test (TZ Matrix)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tz: [UTC, "America/New_York"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install
+      - name: Run tests
+        run: TZ=${{ matrix.tz }} bun test
+        env:
+          TZ: ${{ matrix.tz }}
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for committed secrets
+        run: |
+          # Fail if any real credentials found
+          if git grep -nEi 'password|secret|apikey|token|totp|credential' -- ':!*.md' ':!*.example' ':!.gitignore' ':!test/*.ts' ':!*.example' -- . | grep -v 'placeholder\|example\|your-\|test'; then
+            echo "::error::Potential secrets found in code"
+            exit 1
+          fi
+          echo "No secrets detected"
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [install-and-typecheck, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install
+      - name: Build all packages
+        run: bun run build
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
