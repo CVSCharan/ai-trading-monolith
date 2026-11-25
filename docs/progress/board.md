@@ -51,16 +51,6 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S5-005](sprints/sprint-5.md#S5-005) | AuthPage.tsx (Better Auth) | 🔴 | 2026-12-25 |
-| [S5-006](sprints/sprint-5.md#S5-006) | DashboardPage.tsx (equity, PnL, positions) | 🟡 | 2026-12-25 |
-| [S5-007](sprints/sprint-5.md#S5-007) | TradeCandlestickChart.tsx (EMA overlay + markers) | 🔴 | 2026-12-26 |
-| [S5-008](sprints/sprint-5.md#S5-008) | TradeContextPanel.tsx (option chain, greeks) | 🟡 | 2026-12-27 |
-| [S5-009](sprints/sprint-5.md#S5-009) | TradeAuditorPage keyboard nav (←/→) | 🔴 | 2026-12-27 |
-| [S5-010](sprints/sprint-5.md#S5-010) | useWebSocket hook + PositionPanel real-time | 🔴 | 2026-12-28 |
-| [S5-011](sprints/sprint-5.md#S5-011) | StrategyBuilderPage.tsx | 🟡 | 2026-12-29 |
-| [S5-012](sprints/sprint-5.md#S5-012) | BacktestResultsPage.tsx (equity curve + trades) | 🟡 | 2026-12-29 |
-| [S5-013](sprints/sprint-5.md#S5-013) | PaperTradingPage.tsx | 🟡 | 2026-12-30 |
-| [S5-014](sprints/sprint-5.md#S5-014) | PortfolioBar + SignalFeed components | 🟡 | 2026-12-30 |
 | [S5-015](sprints/sprint-5.md#S5-015) | Sprint 5 checklist + mobile responsive audit | 🔴 | 2027-01-01 |
 
 ---
@@ -129,6 +119,7 @@
 | S4-005..011 | Implement `websocket-manager.ts` reconnect/backfill, `paper-trading.ts` (MTM + risk + fills), `scheduler.ts` (IST cron) | 2026-11-26 |
 | S4-013..014 | Add `paper-engine.test.ts` (Sprint 4 complete) | 2026-11-26 |
 | S5-001..004 | Scaffold `apps/web` (Vite + React 18 + Tailwind + Router + TanStack Query + API proxy) | 2026-11-26 |
+| S5-005..014 | Implement `useWebSocket`, `TradeCandlestickChart`, `TradeAuditorPage` (`←`/`→`), `StrategyBuilderPage`, `BacktestResultsPage`, `PaperTradingPage`, `SettingsPage`, `App.tsx` | 2026-11-26 |
 
 ---
 

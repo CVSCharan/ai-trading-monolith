@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { Activity, BarChart3, LineChart, Settings, ShieldAlert, TrendingUp } from 'lucide-react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
+import { StrategyBuilderPage } from './pages/StrategyBuilderPage';
+import { BacktestResultsPage } from './pages/BacktestResultsPage';
+import { TradeAuditorPage } from './pages/TradeAuditorPage';
+import { PaperTradingPage } from './pages/PaperTradingPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 interface HealthResponse {
   status: string;
@@ -54,11 +59,13 @@ function DashboardView({ health }: { health?: HealthResponse }) {
   );
 }
 
-function PlaceholderView({ title, description }: { title: string; description: string }) {
+function LiveGatedView() {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
-      <h2 className="text-xl font-semibold text-white">{title}</h2>
-      <p className="mt-2 text-sm text-slate-400">{description}</p>
+    <div className="rounded-xl border border-amber-500/30 bg-slate-900/70 p-6">
+      <h2 className="text-xl font-semibold text-amber-400">Live Trading (Gated)</h2>
+      <p className="mt-2 text-sm text-slate-300">
+        Live execution requires: 100+ completed paper trades, Profit Factor &gt; 1.5, Max Drawdown &lt; 10%, active Groww TOTP credentials, and admin approval (`ENABLE_LIVE_TRADING=true`).
+      </p>
     </div>
   );
 }
@@ -84,7 +91,8 @@ export default function App() {
         </div>
         <nav className="space-y-1">
           {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
-            const active = location.pathname === to;
+            const active =
+              to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
             return (
               <Link
                 key={to}
@@ -106,30 +114,13 @@ export default function App() {
       <main className="flex-1 p-8">
         <Routes>
           <Route path="/" element={<DashboardView health={health} />} />
-          <Route
-            path="/strategy/builder"
-            element={<PlaceholderView title="Strategy Builder" description="Configure NIFTY/BANKNIFTY 9/21 EMA parameters, entry windows, and risk limits." />}
-          />
-          <Route
-            path="/backtest"
-            element={<PlaceholderView title="Backtest Results" description="Enqueue and inspect deterministic historical backtests." />}
-          />
-          <Route
-            path="/trade-auditor"
-            element={<PlaceholderView title="Trade Auditor" description="Inspect 1m candlestick charts with EMA9/EMA21 overlays and option chain context." />}
-          />
-          <Route
-            path="/paper-trading"
-            element={<PlaceholderView title="Paper Trading" description="Monitor simulated positions, daily P&L, and live signals." />}
-          />
-          <Route
-            path="/live-trading"
-            element={<PlaceholderView title="Live Trading (Gated)" description="Requires 100+ paper trades, PF > 1.5, DD < 10%, and 2FA approval." />}
-          />
-          <Route
-            path="/settings"
-            element={<PlaceholderView title="Settings" description="Connect Groww TOTP Token + QR Secret and manage risk limits." />}
-          />
+          <Route path="/strategy/builder" element={<StrategyBuilderPage />} />
+          <Route path="/backtest" element={<BacktestResultsPage />} />
+          <Route path="/trade-auditor" element={<TradeAuditorPage />} />
+          <Route path="/trade-auditor/:id" element={<TradeAuditorPage />} />
+          <Route path="/paper-trading" element={<PaperTradingPage />} />
+          <Route path="/live-trading" element={<LiveGatedView />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
     </div>
