@@ -20,6 +20,7 @@ import { ReconciliationService } from './services/reconciliation';
 import { MarketDataService } from './services/market-data';
 import { PaperTradingEngine } from './services/paper-trading';
 import { LiveTradingEngine } from './services/live-trading';
+import { TradingScheduler } from './services/scheduler';
 
 // Logger (human-readable in dev, JSON + secret redaction in production)
 const logger = pino({
@@ -64,6 +65,7 @@ const marketData = new MarketDataService(growwClient, db, logger);
 const commandProcessor = new CommandProcessor(db, logger, growwClient);
 const paperEngine = new PaperTradingEngine(db, logger, growwClient, marketData);
 const liveEngine = new LiveTradingEngine(db, logger, growwClient, marketData);
+const scheduler = new TradingScheduler(db, logger, growwClient);
 
 // Elysia app for health checks and metrics
 const app = new Elysia()
@@ -93,6 +95,9 @@ async function startEngine() {
 
   // Start market data WebSocket
   await marketData.connect();
+
+  // Start IST scheduler
+  scheduler.start();
 
   // Start command polling
   setInterval(pollCommands, COMMAND_POLL_INTERVAL);
@@ -169,6 +174,9 @@ async function shutdown() {
   isShuttingDown = true;
 
   logger.info('Shutting down trading engine...');
+
+  // Stop scheduler
+  scheduler.stop();
 
   // Stop all active sessions
   await commandProcessor.stopAllSessions();

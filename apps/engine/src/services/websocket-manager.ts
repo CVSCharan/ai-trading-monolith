@@ -40,39 +40,53 @@ export class WebSocketManager {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
+  private maxReconnectDelay = 60_000;
   private isConnecting = false;
+  private isManualClose = false;
   private messageBuffer: any[] = [];
   private lastPing = Date.now();
+  private lastReceivedBarTime: Date | null = null;
+  private tokenProvider: (() => Promise<string>) | null = null;
+  private onBackfillNeeded: ((from: Date, to: Date) => Promise<void>) | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(logger: pino.Logger) {
     this.logger = logger.child({ component: 'WebSocketManager' });
   }
 
-  async connect(token: string): Promise<void> {
+  async connect(
+    tokenOrProvider: string | (() => Promise<string>),
+    onBackfill?: (from: Date, to: Date) => Promise<void>
+  ): Promise<void> {
     if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
       return;
     }
 
+    this.isManualClose = false;
+    this.tokenProvider =
+      typeof tokenOrProvider === 'function' ? tokenOrProvider : async () => tokenOrProvider;
+    if (onBackfill) this.onBackfillNeeded = onBackfill;
+
     this.isConnecting = true;
-    this.reconnectAttempts = 0;
 
     try {
+      const token = await this.tokenProvider();
       const wsUrl = `${config.groww.apiBaseUrl.replace('http', 'ws')}/v1/market/ws?token=${token}`;
       this.ws = new WebSocket(wsUrl);
 
-      this.ws.on('open', () => this.handleOpen());
+      this.ws.on('open', () => void this.handleOpen());
       this.ws.on('message', (data) => this.handleMessage(data));
       this.ws.on('close', () => this.handleClose());
       this.ws.on('error', (err) => this.handleError(err));
       this.ws.on('pong', () => { this.lastPing = Date.now(); });
 
-      // Ping interval
-      setInterval(() => {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.ping();
-        }
-      }, 30000);
-
+      if (!this.pingTimer) {
+        this.pingTimer = setInterval(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.ping();
+          }
+        }, 30_000);
+      }
     } catch (error) {
       this.isConnecting = false;
       this.logger.error({ err: error }, 'Failed to create WebSocket connection');
@@ -80,17 +94,27 @@ export class WebSocketManager {
     }
   }
 
-  private handleOpen() {
+  private async handleOpen() {
     this.logger.info('WebSocket connected to Groww');
+    const wasReconnect = this.reconnectAttempts > 0;
     this.isConnecting = false;
     this.reconnectAttempts = 0;
 
-    // Resubscribe to all active subscriptions
-    for (const [key, sub] of this.subscriptions) {
+    if (wasReconnect && this.lastReceivedBarTime && this.onBackfillNeeded) {
+      const from = this.lastReceivedBarTime;
+      const to = new Date();
+      this.logger.info({ from, to }, 'Backfilling missing bars after WebSocket reconnect');
+      try {
+        await this.onBackfillNeeded(from, to);
+      } catch (err) {
+        this.logger.error({ err }, 'Backfill after reconnect failed');
+      }
+    }
+
+    for (const [, sub] of this.subscriptions) {
       this.sendSubscribe(sub.symbols, sub.timeframe);
     }
 
-    // Flush message buffer
     while (this.messageBuffer.length > 0) {
       const msg = this.messageBuffer.shift();
       this.send(msg);
@@ -173,6 +197,7 @@ export class WebSocketManager {
   }
 
   private emitCandle(symbol: string, timeframe: string, buffer: any) {
+    this.lastReceivedBarTime = buffer.startTime instanceof Date ? buffer.startTime : new Date();
     const candle: CandleData = {
       symbol,
       timeframe,
@@ -204,7 +229,9 @@ export class WebSocketManager {
   private handleClose() {
     this.logger.warn('WebSocket disconnected');
     this.isConnecting = false;
-    this.scheduleReconnect();
+    if (!this.isManualClose) {
+      this.scheduleReconnect();
+    }
   }
 
   private handleError(error: Error) {
@@ -218,12 +245,18 @@ export class WebSocketManager {
     }
 
     this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    const delay = Math.min(
+      this.maxReconnectDelay,
+      this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1)
+    );
     this.logger.info({ attempt: this.reconnectAttempts, delay }, 'Scheduling reconnect');
 
     setTimeout(() => {
-      // Reconnect would need valid token - handled by caller
-      this.logger.info('Reconnect triggered');
+      if (this.isManualClose || !this.tokenProvider) return;
+      this.connect(this.tokenProvider).catch((err) => {
+        this.logger.error({ err }, 'Reconnect attempt failed');
+        this.scheduleReconnect();
+      });
     }, delay);
   }
 
@@ -280,6 +313,11 @@ export class WebSocketManager {
   }
 
   async disconnect(): Promise<void> {
+    this.isManualClose = true;
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;
