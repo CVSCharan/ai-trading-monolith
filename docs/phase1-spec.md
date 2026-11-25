@@ -1038,11 +1038,13 @@ ENABLE_LIVE_TRADING=false
 ENABLE_PAPER_TRADING=true
 ENABLE_BACKTEST=true
 
-# Cost Config (dated - update when broker changes)
+# Cost Configuration (DYNAMIC - loaded from cost_configs table in DB)
+# The values below are ONLY fallback defaults if DB lookup fails.
+# Real values are stored in cost_configs table with dated effectiveness.
 COST_CONFIG_EFFECTIVE_FROM=2024-01-01
 COST_BROKERAGE_PER_ORDER=20
-COST_STT_PCT=0.0005
-COST_EXCHANGE_PCT=0.00053
+COST_STT_PCT=0.001
+COST_EXCHANGE_PCT=0.0005
 COST_GST_PCT=0.18
 COST_SEBI_PER_CRORE=10
 COST_STAMP_PCT=0.00003

@@ -2,13 +2,23 @@
 
 A complete trading lifecycle system for Indian markets using Groww API.
 
-## Repositories
+## Monorepo Structure (Bun Workspaces)
 
-| Repository | Description | Tech Stack |
-|------------|-------------|------------|
-| [`groww-trading-api`](groww-trading-api) | Backend API with strategy engine, backtesting, paper/live trading | Bun + Elysia + PostgreSQL |
-| [`groww-trading-web`](groww-trading-web) | Frontend dashboard for strategy config, backtest results, trade auditing | React + Vite + Tailwind |
-| [`groww-trading-shared`](groww-trading-shared) | Shared types, constants, timezone utilities | TypeScript |
+```
+groww-ai-trading-monolith/
+├── apps/
+│   ├── api/           # Elysia backend (Vercel Functions)
+│   ├── web/           # React frontend (Vercel Static)
+│   └── engine/        # Long-lived trading engine (VPS/Docker)
+├── packages/
+│   ├── strategy-core/ # Pure strategy logic (no deps)
+│   └── shared/        # Types, constants, timezone helpers
+├── docs/              # Master documentation
+├── turbo.json         # Turborepo config
+├── package.json       # Root workspace
+├── tsconfig.json      # Base TypeScript config
+└── CLAUDE.md          # Project rules
+```
 
 ## Documentation
 
@@ -27,20 +37,55 @@ A complete trading lifecycle system for Indian markets using Groww API.
 ### Setup
 
 ```bash
-# Clone and setup API
-cd groww-trading-api
-cp .env.example .env
-# Edit .env with your credentials
+# From root - single install for all workspaces
+cd groww-ai-trading-monolith
 bun install
+
+# Setup environment
+cp .env.example .env
+# Edit .env with your credentials (Neon DB, Groww API keys, etc.)
+
+# Database setup (API only)
+cd apps/api
+bun run db:generate
 bun run db:migrate
 bun run db:seed
-bun run dev
 
-# Setup Web (in another terminal)
-cd groww-trading-web
-cp .env.example .env
-bun install
+# Start all services (API, Web, Engine)
+cd ../..
 bun run dev
+```
+
+### Individual App Commands
+
+```bash
+# API (Elysia + Better Auth)
+cd apps/api
+bun run dev          # Dev with hot reload
+bun run build        # Build for production
+bun run test         # Run tests
+bun run db:studio    # Drizzle Studio
+
+# Web (React + Vite)
+cd apps/web
+bun run dev          # Vite dev server
+bun run build        # Production build
+bun run preview      # Preview build
+
+# Engine (Long-lived process)
+cd apps/engine
+bun run dev          # Dev with hot reload
+bun run start        # Production start
+```
+
+### Database (API only)
+```bash
+cd apps/api
+bun run db:generate   # Generate migrations
+bun run db:migrate    # Run migrations
+bun run db:push       # Push schema (dev)
+bun run db:studio     # Drizzle Studio
+bun run db:seed       # Seed instruments
 ```
 
 ## Strategy Overview
@@ -51,82 +96,67 @@ bun run dev
 - Exit: Opposite crossover or 15:00 mandatory square-off
 - Immediate reversal: Opposite crossover within window closes and reverses
 - Execution modes: Deep ITM Buy, ATM Buy, ATM Sell
-- Lot size: 75 (NIFTY current), 1 lot per trade
+- Lot size: From `instruments` table (NIFTY: 75 current), 1 lot per trade
 
 ## Development
 
 ### Running Tests
 ```bash
-# API tests
-cd groww-trading-api && bun test
+# All tests (from root)
+bun test
 
-# Web tests
-cd groww-trading-web && bun test
-
-# Shared tests
-cd groww-trading-shared && bun test
+# Individual packages
+cd packages/strategy-core && bun test
+cd apps/api && bun test
+cd apps/web && bun test
 ```
 
 ### Type Checking
 ```bash
 # All packages
-cd groww-trading-api && bun run typecheck
-cd groww-trading-web && bun run typecheck
-cd groww-trading-shared && bun run typecheck
+bun run typecheck
+
+# Individual
+cd packages/strategy-core && bun run typecheck
+cd apps/api && bun run typecheck
+cd apps/web && bun run typecheck
 ```
 
-### Database
+### Database (API only)
 ```bash
-# Generate migrations
-cd groww-trading-api && bun run db:generate
-
-# Run migrations
-cd groww-trading-api && bun run db:migrate
-
-# Push schema (dev)
-cd groww-trading-api && bun run db:push
-
-# Open Drizzle Studio
-cd groww-trading-api && bun run db:studio
+cd apps/api
+bun run db:generate   # Generate migrations
+bun run db:migrate    # Run migrations
+bun run db:push       # Push schema (dev)
+bun run db:studio     # Drizzle Studio
+bun run db:seed       # Seed instruments
 ```
 
 ## Project Structure
 
 ```
-groww-trading-system/
-├── docs/                      # Master documentation
-│   ├── project-plan.md
-│   ├── architecture.md
-│   ├── strategy-docs-v2.md
-│   └── phase1-spec.md
-├── groww-trading-api/         # Backend API
-│   ├── docs/                  # API-specific docs
-│   ├── packages/
-│   │   └── strategy-core/     # Pure strategy logic (no deps)
-│   ├── src/
-│   │   ├── routes/            # API routes
-│   │   ├── services/          # Business logic
-│   │   ├── db/                # Database schema & migrations
-│   │   └── index.ts           # Entry point
-│   └── package.json
-├── groww-trading-web/         # Frontend Dashboard
-│   ├── docs/                  # Web-specific docs
-│   ├── src/
-│   │   ├── pages/             # Page components
-│   │   ├── components/        # Reusable components
-│   │   ├── hooks/             # Custom hooks
-│   │   ├── stores/            # Zustand stores
-│   │   ├── services/          # API clients
-│   │   └── main.tsx           # Entry point
-│   └── package.json
-└── groww-trading-shared/      # Shared package
-    ├── docs/                  # Shared docs
-    ├── src/
-    │   ├── constants.ts       # Shared constants
-    │   ├── timezone.ts        # IST timezone utilities
-    │   └── types.ts           # Shared types
-    └── package.json
+groww-ai-trading-monolith/
+├── apps/
+│   ├── api/           # Elysia backend (Vercel Functions)
+│   ├── web/           # React frontend (Vercel Static)
+│   └── engine/        # Long-lived trading engine (VPS/Docker)
+├── packages/
+│   ├── strategy-core/ # Pure strategy logic (no deps)
+│   └── shared/        # Types, constants, timezone helpers
+├── docs/              # Master documentation
+├── turbo.json         # Turborepo config
+├── package.json       # Root workspace
+├── tsconfig.json      # Base TypeScript config
+└── CLAUDE.md          # Project rules
 ```
+
+## Deployment Targets
+
+| App | Platform | Root Directory | Build Command |
+|-----|----------|----------------|---------------|
+| web | Vercel (Static) | `apps/web` | `bun run build` |
+| api | Vercel (Functions) | `apps/api` | `bun run build` |
+| engine | VPS/Docker | `apps/engine` | `bun run build` |
 
 ## Security
 

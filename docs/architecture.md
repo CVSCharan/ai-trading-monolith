@@ -85,48 +85,64 @@ Trade ID → Load 1m candles (±30 min) → Load resampled candles
 ### Core Tables
 
 ```sql
--- Users & Auth
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    two_factor_secret VARCHAR(255),
-    two_factor_enabled BOOLEAN DEFAULT FALSE,
-    role VARCHAR(50) DEFAULT 'user',
+-- Better Auth Tables (managed by Better Auth)
+-- user, session, account, verification, passkey
+
+-- User Profiles (extends Better Auth user)
+CREATE TABLE user_profiles (
+    user_id UUID PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+    display_name VARCHAR(100),
+    timezone VARCHAR(50) DEFAULT 'Asia/Kolkata',
+    paper_capital DECIMAL(15,2) DEFAULT 1000000,
+    risk_limits JSONB DEFAULT '{
+        "maxDailyLossPct": 2,
+        "maxPositions": 3,
+        "perTradeRiskPct": 1,
+        "blockedPeriods": ["09:15-09:30", "15:15-15:30"]
+    }'::jsonb,
+    live_trading_enabled BOOLEAN DEFAULT FALSE,
+    live_trading_approved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Groww API Credentials (encrypted)
+-- Instrument Master (Critical for lot sizes)
+CREATE TABLE instruments (
+    id BIGSERIAL PRIMARY KEY,
+    symbol VARCHAR(50) NOT NULL,
+    instrument_type VARCHAR(20) NOT NULL,
+    name VARCHAR(200),
+    exchange VARCHAR(20) DEFAULT 'NSE',
+    segment VARCHAR(20) DEFAULT 'FO',
+    lot_size INTEGER NOT NULL,
+    tick_size DECIMAL(10,4) NOT NULL DEFAULT 0.05,
+    strike_step INTEGER,
+    underlying_symbol VARCHAR(50),
+    strike_price DECIMAL(12,2),
+    option_type VARCHAR(10),
+    expiry_date DATE,
+    expiry_type VARCHAR(20),
+    is_active BOOLEAN DEFAULT TRUE,
+    valid_from DATE NOT NULL,
+    valid_to DATE,
+    groww_token VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(symbol, instrument_type, expiry_date, strike_price, option_type, valid_from)
+);
+CREATE INDEX idx_instruments_lookup ON instruments(symbol, instrument_type, is_active, valid_from, valid_to);
+
+-- Groww Credentials (Envelope encrypted)
 CREATE TABLE groww_credentials (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES "user"(id) ON DELETE CASCADE UNIQUE,
     api_key_encrypted BYTEA NOT NULL,
     api_secret_encrypted BYTEA NOT NULL,
     totp_secret_encrypted BYTEA NOT NULL,
     access_token_encrypted BYTEA,
     refresh_token_encrypted BYTEA,
     token_expires_at TIMESTAMPTZ,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Strategies
-CREATE TABLE strategies (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    symbol VARCHAR(50) NOT NULL, -- NIFTY, BANKNIFTY, etc.
-    timeframe VARCHAR(10) NOT NULL, -- 5m, 15m, 30m
-    entry_start_time TIME NOT NULL, -- 09:30, 10:00, 10:30
-    entry_end_time TIME NOT NULL,   -- 11:30 to 14:30
-    exit_time TIME NOT NULL DEFAULT '15:00',
-    execution_mode VARCHAR(20) NOT NULL, -- DEEP_ITM_BUY, ATM_BUY, ATM_SELL
-    lot_size INTEGER NOT NULL DEFAULT 65,
-    lots INTEGER NOT NULL DEFAULT 1,
-    strike_offset INTEGER DEFAULT 5, -- For Deep ITM
-    risk_params JSONB NOT NULL DEFAULT '{}',
+    last_refresh_at TIMESTAMPTZ,
+    refresh_count_today INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -135,145 +151,225 @@ CREATE TABLE strategies (
 -- 1-minute Candles (raw from Groww)
 CREATE TABLE candles_1m (
     id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(50) NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL,
-    open DECIMAL(12,2) NOT NULL,
-    high DECIMAL(12,2) NOT NULL,
-    low DECIMAL(12,2) NOT NULL,
-    close DECIMAL(12,2) NOT NULL,
+    instrument_id BIGINT REFERENCES instruments(id) ON DELETE CASCADE,
+    bar_time TIMESTAMPTZ NOT NULL,
+    open NUMERIC(12,4) NOT NULL,
+    high NUMERIC(12,4) NOT NULL,
+    low NUMERIC(12,4) NOT NULL,
+    close NUMERIC(12,4) NOT NULL,
     volume BIGINT NOT NULL,
-    oi BIGINT, -- Open Interest for options
+    oi BIGINT,
+    bid NUMERIC(12,4),
+    ask NUMERIC(12,4),
+    source VARCHAR(20) DEFAULT 'groww',
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(symbol, timestamp)
+    UNIQUE(instrument_id, bar_time)
 );
-CREATE INDEX idx_candles_1m_symbol_time ON candles_1m(symbol, timestamp DESC);
+CREATE INDEX idx_candles_1m_inst_time ON candles_1m(instrument_id, bar_time DESC);
 
 -- Resampled Candles (5m, 15m, 30m aligned to 09:15)
 CREATE TABLE candles_resampled (
     id BIGSERIAL PRIMARY KEY,
-    symbol VARCHAR(50) NOT NULL,
-    timeframe VARCHAR(10) NOT NULL, -- 5m, 15m, 30m
-    timestamp TIMESTAMPTZ NOT NULL, -- Bar open time
-    open DECIMAL(12,2) NOT NULL,
-    high DECIMAL(12,2) NOT NULL,
-    low DECIMAL(12,2) NOT NULL,
-    close DECIMAL(12,2) NOT NULL,
+    instrument_id BIGINT REFERENCES instruments(id) ON DELETE CASCADE,
+    timeframe VARCHAR(10) NOT NULL,
+    bar_time TIMESTAMPTZ NOT NULL,
+    open NUMERIC(12,4) NOT NULL,
+    high NUMERIC(12,4) NOT NULL,
+    low NUMERIC(12,4) NOT NULL,
+    close NUMERIC(12,4) NOT NULL,
     volume BIGINT NOT NULL,
-    ema_9 DECIMAL(12,4),
-    ema_21 DECIMAL(12,4),
+    oi BIGINT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(symbol, timeframe, timestamp)
+    UNIQUE(instrument_id, timeframe, bar_time)
 );
-CREATE INDEX idx_candles_resampled_lookup ON candles_resampled(symbol, timeframe, timestamp DESC);
+CREATE INDEX idx_candles_resampled_lookup ON candles_resampled(instrument_id, timeframe, bar_time DESC);
+
+-- Strategies
+CREATE TABLE strategies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES "user"(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    underlying_symbol VARCHAR(50) NOT NULL,
+    timeframe VARCHAR(10) NOT NULL,
+    entry_start_time TIME NOT NULL,
+    entry_end_time TIME NOT NULL,
+    exit_time TIME NOT NULL DEFAULT '15:00:00',
+    execution_mode VARCHAR(20) NOT NULL,
+    strike_offset INTEGER DEFAULT 5,
+    lots INTEGER NOT NULL DEFAULT 1,
+    risk_params JSONB NOT NULL DEFAULT '{}',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Signals (Audit trail for every signal)
+CREATE TABLE signals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    strategy_id UUID REFERENCES strategies(id) ON DELETE CASCADE,
+    run_type VARCHAR(20) NOT NULL,
+    bar_time TIMESTAMPTZ NOT NULL,
+    signal_type VARCHAR(10) NOT NULL,
+    ema_9 NUMERIC(12,4) NOT NULL,
+    ema_21 NUMERIC(12,4) NOT NULL,
+    spot_price NUMERIC(12,2) NOT NULL,
+    selected_strike NUMERIC(12,2),
+    option_type VARCHAR(10),
+    option_symbol VARCHAR(100),
+    expiry_date DATE,
+    entry_window_valid BOOLEAN NOT NULL,
+    reversal_signal BOOLEAN DEFAULT FALSE,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_signals_strategy_time ON signals(strategy_id, bar_time DESC);
 
 -- Backtest Runs
 CREATE TABLE backtest_runs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     strategy_id UUID REFERENCES strategies(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES "user"(id) ON DELETE CASCADE,
     name VARCHAR(255),
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
-    initial_capital DECIMAL(15,2) NOT NULL,
-    final_capital DECIMAL(15,2),
+    initial_capital NUMERIC(15,2) NOT NULL,
+    final_capital NUMERIC(15,2),
     total_trades INTEGER DEFAULT 0,
     winning_trades INTEGER DEFAULT 0,
     losing_trades INTEGER DEFAULT 0,
-    max_drawdown DECIMAL(10,2),
-    sharpe_ratio DECIMAL(10,4),
-    profit_factor DECIMAL(10,4),
-    win_rate DECIMAL(5,2),
-    avg_win DECIMAL(12,2),
-    avg_loss DECIMAL(12,2),
+    max_drawdown NUMERIC(10,2),
+    sharpe_ratio NUMERIC(10,4),
+    profit_factor NUMERIC(10,4),
+    win_rate NUMERIC(5,2),
+    avg_win NUMERIC(12,2),
+    avg_loss NUMERIC(12,2),
     max_consecutive_wins INTEGER,
     max_consecutive_losses INTEGER,
-    status VARCHAR(20) DEFAULT 'pending', -- pending, running, completed, failed
+    status VARCHAR(20) DEFAULT 'pending',
     error_message TEXT,
+    config_snapshot JSONB NOT NULL,
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Individual Trades (Backtest + Paper + Live)
-CREATE TABLE trades (
+-- Backtest Trades (Separate from live/paper)
+CREATE TABLE backtest_trades (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    backtest_run_id UUID REFERENCES backtest_runs(id) ON DELETE SET NULL,
-    strategy_id UUID REFERENCES strategies(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    trade_type VARCHAR(20) NOT NULL, -- backtest, paper, live
+    backtest_run_id UUID REFERENCES backtest_runs(id) ON DELETE CASCADE,
+    signal_id UUID REFERENCES signals(id) ON DELETE SET NULL,
+    trade_num INTEGER NOT NULL,
     symbol VARCHAR(50) NOT NULL,
-    option_symbol VARCHAR(100), -- NIFTY24JAN18000CE
-    side VARCHAR(10) NOT NULL, -- BUY, SELL
+    option_symbol VARCHAR(100) NOT NULL,
+    side VARCHAR(10) NOT NULL,
     entry_time TIMESTAMPTZ NOT NULL,
-    entry_price DECIMAL(12,2) NOT NULL,
+    entry_price NUMERIC(12,4) NOT NULL,
     exit_time TIMESTAMPTZ,
-    exit_price DECIMAL(12,2),
-    quantity INTEGER NOT NULL, -- lots * lot_size
-    pnl DECIMAL(12,2),
-    pnl_pct DECIMAL(8,4),
-    exit_reason VARCHAR(50), -- OPPOSITE_CROSSOVER, SQUARE_OFF, REVERSAL, MANUAL
-    status VARCHAR(20) DEFAULT 'open', -- open, closed, cancelled
-    metadata JSONB DEFAULT '{}', -- strike, IV, greeks, etc.
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    exit_price NUMERIC(12,4),
+    quantity INTEGER NOT NULL,
+    gross_pnl NUMERIC(12,2),
+    costs NUMERIC(12,2),
+    net_pnl NUMERIC(12,2),
+    exit_reason VARCHAR(50),
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX idx_trades_strategy_time ON trades(strategy_id, entry_time DESC);
-CREATE INDEX idx_trades_user_type ON trades(user_id, trade_type, entry_time DESC);
+CREATE INDEX idx_backtest_trades_run ON backtest_trades(backtest_run_id, entry_time);
 
--- Paper Trading Portfolio
+-- Paper Trading
 CREATE TABLE paper_portfolios (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-    cash_balance DECIMAL(15,2) NOT NULL DEFAULT 1000000,
-    total_value DECIMAL(15,2) NOT NULL DEFAULT 1000000,
-    daily_pnl DECIMAL(15,2) DEFAULT 0,
-    max_daily_loss DECIMAL(15,2) DEFAULT 20000, -- 2%
+    user_id UUID REFERENCES "user"(id) ON DELETE CASCADE UNIQUE,
+    cash_balance NUMERIC(15,2) NOT NULL DEFAULT 1000000,
+    total_value NUMERIC(15,2) NOT NULL DEFAULT 1000000,
+    daily_pnl NUMERIC(15,2) DEFAULT 0,
+    day_start_value NUMERIC(15,2) DEFAULT 1000000,
+    max_daily_loss NUMERIC(15,2) GENERATED ALWAYS AS (total_value * 0.02) STORED,
     is_active BOOLEAN DEFAULT TRUE,
+    session_started_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Paper Positions
 CREATE TABLE paper_positions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     portfolio_id UUID REFERENCES paper_portfolios(id) ON DELETE CASCADE,
-    symbol VARCHAR(50) NOT NULL,
     option_symbol VARCHAR(100) NOT NULL,
-    side VARCHAR(10) NOT NULL, -- LONG, SHORT
+    side VARCHAR(10) NOT NULL,
     quantity INTEGER NOT NULL,
-    avg_entry_price DECIMAL(12,2) NOT NULL,
-    current_price DECIMAL(12,2),
-    unrealized_pnl DECIMAL(12,2) DEFAULT 0,
-    realized_pnl DECIMAL(12,2) DEFAULT 0,
+    avg_entry_price NUMERIC(12,4) NOT NULL,
+    current_price NUMERIC(12,4),
+    unrealized_pnl NUMERIC(12,2) DEFAULT 0,
+    realized_pnl NUMERIC(12,2) DEFAULT 0,
     opened_at TIMESTAMPTZ DEFAULT NOW(),
     closed_at TIMESTAMPTZ,
-    UNIQUE(portfolio_id, option_symbol)
+    UNIQUE(portfolio_id, option_symbol) WHERE closed_at IS NULL
 );
 
--- Live Orders (Audit Trail)
-CREATE TABLE live_orders (
+CREATE TABLE paper_trades (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    portfolio_id UUID REFERENCES paper_portfolios(id) ON DELETE CASCADE,
+    signal_id UUID REFERENCES signals(id) ON DELETE SET NULL,
+    option_symbol VARCHAR(100) NOT NULL,
+    side VARCHAR(10) NOT NULL,
+    entry_time TIMESTAMPTZ NOT NULL,
+    entry_price NUMERIC(12,4) NOT NULL,
+    exit_time TIMESTAMPTZ,
+    exit_price NUMERIC(12,4),
+    quantity INTEGER NOT NULL,
+    gross_pnl NUMERIC(12,2),
+    costs NUMERIC(12,2),
+    net_pnl NUMERIC(12,2),
+    exit_reason VARCHAR(50),
+    fill_metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_paper_trades_portfolio ON paper_trades(portfolio_id, entry_time DESC);
+
+-- Live Trading (Audit-critical)
+CREATE TABLE live_fills (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES "user"(id) ON DELETE CASCADE,
     strategy_id UUID REFERENCES strategies(id) ON DELETE SET NULL,
+    signal_id UUID REFERENCES signals(id) ON DELETE SET NULL,
     groww_order_id VARCHAR(100),
+    idempotency_key UUID NOT NULL UNIQUE,
     symbol VARCHAR(50) NOT NULL,
     option_symbol VARCHAR(100) NOT NULL,
-    side VARCHAR(10) NOT NULL, -- BUY, SELL
-    order_type VARCHAR(20) NOT NULL, -- MARKET, LIMIT
+    side VARCHAR(10) NOT NULL,
+    order_type VARCHAR(20) NOT NULL,
     quantity INTEGER NOT NULL,
-    price DECIMAL(12,2),
-    trigger_price DECIMAL(12,2),
-    status VARCHAR(30) NOT NULL, -- PENDING, OPEN, COMPLETE, CANCELLED, REJECTED
+    price NUMERIC(12,4),
+    trigger_price NUMERIC(12,4),
+    status VARCHAR(30) NOT NULL,
     filled_quantity INTEGER DEFAULT 0,
-    avg_fill_price DECIMAL(12,2),
+    avg_fill_price NUMERIC(12,4),
     placed_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     completed_at TIMESTAMPTZ
 );
+CREATE INDEX idx_live_fills_user_time ON live_fills(user_id, placed_at DESC);
+CREATE INDEX idx_live_fills_groww_order ON live_fills(groww_order_id);
+CREATE INDEX idx_live_fills_idempotency ON live_fills(idempotency_key);
 
--- Audit Logs (Immutable)
+CREATE TABLE live_positions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES "user"(id) ON DELETE CASCADE,
+    option_symbol VARCHAR(100) NOT NULL,
+    side VARCHAR(10) NOT NULL,
+    quantity INTEGER NOT NULL,
+    avg_entry_price NUMERIC(12,4) NOT NULL,
+    current_price NUMERIC(12,4),
+    unrealized_pnl NUMERIC(12,2) DEFAULT 0,
+    realized_pnl NUMERIC(12,2) DEFAULT 0,
+    opened_at TIMESTAMPTZ DEFAULT NOW(),
+    closed_at TIMESTAMPTZ,
+    UNIQUE(user_id, option_symbol) WHERE closed_at IS NULL
+);
+
+-- Audit Logs (Immutable - enforced by RLS)
 CREATE TABLE audit_logs (
     id BIGSERIAL PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES "user"(id) ON DELETE SET NULL,
     action VARCHAR(100) NOT NULL,
     entity_type VARCHAR(50) NOT NULL,
     entity_id UUID,
@@ -286,15 +382,30 @@ CREATE TABLE audit_logs (
 CREATE INDEX idx_audit_logs_user_time ON audit_logs(user_id, created_at DESC);
 CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
 
--- Market Data Cache (Option Chains, etc.)
+-- RLS Policy: No UPDATE/DELETE on audit_logs
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY audit_immutable ON audit_logs FOR ALL USING (false) WITH CHECK (false);
+
+-- Market Data Cache
 CREATE TABLE market_data_cache (
-    id BIGSERIAL PRIMARY KEY,
-    cache_key VARCHAR(255) NOT NULL UNIQUE,
+    cache_key VARCHAR(255) PRIMARY KEY,
     data JSONB NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX idx_market_data_cache_expires ON market_data_cache(expires_at);
+
+-- Reconciliation State (For crash recovery)
+CREATE TABLE reconciliation_state (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES "user"(id) ON DELETE CASCADE,
+    run_type VARCHAR(20) NOT NULL,
+    last_processed_bar TIMESTAMPTZ,
+    open_signals JSONB DEFAULT '[]',
+    open_positions_snapshot JSONB,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, run_type)
+);
 ```
 
 ---
@@ -347,7 +458,7 @@ CREATE INDEX idx_market_data_cache_expires ON market_data_cache(expires_at);
 |--------|------|-------------|
 | GET | `/api/trades/:id/chart-data` | Get candlestick + EMA data |
 | GET | `/api/trades/:id/context` | Get trade context (option chain, etc.) |
-| GET | `/api/trades/adjacent/:id` | Get previous/next trade |
+| GET | `/api/trades/:id/adjacent` | Get previous/next trade |
 
 ### Paper Trading
 | Method | Path | Description |
@@ -383,6 +494,13 @@ CREATE INDEX idx_market_data_cache_expires ON market_data_cache(expires_at);
 | GET | `/api/screener/penny-stocks` | Screen penny stocks |
 | GET | `/api/screener/results/:id` | Get screener results |
 | POST | `/api/screener/backtest` | Backtest on screened stocks |
+
+### Engine Commands (API ↔ Engine via Postgres)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/engine/commands` | Send command to engine |
+| GET | `/api/engine/state` | Get engine state |
+| GET | `/api/engine/health` | Get engine health |
 
 ---
 
@@ -441,7 +559,7 @@ packages/strategy-core/
 │   ├── filters.ts       # Entry window, time filters
 │   └── reversal.ts      # Immediate reversal logic
 ├── execution/
-│   ├── option-selector.ts  # ATM/ITM strike selection
+│   ├── instrument-resolver.ts  # ATM/ITM strike selection
 │   ├── position-sizer.ts   # Lot sizing
 │   └── cost-calculator.ts  # Brokerage, STT, slippage
 ├── backtest/
@@ -453,45 +571,53 @@ packages/strategy-core/
 
 ### Key Algorithms
 
-#### EMA Calculation (Vectorized)
+#### EMA Calculation (Vectorized with Proper Seeding)
 ```typescript
-function calculateEMA(prices: number[], period: number): number[] {
+function calculateEMA(prices: number[], period: number): (number | NaN)[] {
+  if (prices.length < period) {
+    return prices.map(() => NaN);
+  }
   const multiplier = 2 / (period + 1);
-  const ema = new Array(prices.length);
-  ema[0] = prices[0]; // SMA for first value
+  const ema: (number | NaN)[] = new Array(prices.length).fill(NaN);
   
-  for (let i = 1; i < prices.length; i++) {
-    ema[i] = (prices[i] - ema[i - 1]) * multiplier + ema[i - 1];
+  // Seed with SMA of first `period` values
+  let sum = 0;
+  for (let i = 0; i < period; i++) {
+    sum += prices[i];
+  }
+  ema[period - 1] = sum / period;
+  
+  for (let i = period; i < prices.length; i++) {
+    ema[i] = (prices[i] - ema[i - 1]!) * multiplier + ema[i - 1]!;
   }
   return ema;
 }
 ```
 
-#### Resampling (Aligned to 09:15)
+#### Resampling (Aligned to 09:15 IST)
 ```typescript
-function resampleToTimeframe(
-  candles: Candle1m[], 
-  timeframe: '5m' | '15m' | '30m'
-): CandleResampled[] {
-  const minutes = { '5m': 5, '15m': 15, '30m': 30 }[timeframe];
-  const marketOpen = '09:15'; // IST
-  
-  // Group by aligned timeframe boundaries
-  // 09:15-09:20, 09:20-09:25, etc. for 5m
+function resampleCandles(candles: Candle1m[], timeframe: Timeframe): CandleResampled[] {
+  // Aligned to 09:15 market open
+  // 5m: 09:15-09:20, 09:20-09:25, ...
+  // 15m: 09:15-09:30, 09:30-09:45, ...
+  // 30m: 09:15-09:45, 09:45-10:15, ...
 }
 ```
 
 #### Signal Generation
 ```typescript
 function generateSignals(
-  candles: CandleResampled[],
-  config: StrategyConfig
+  spotCandles: CandleResampled[],
+  config: StrategyConfig,
+  instruments: Instrument[],
+  runType: RunType
 ): Signal[] {
-  // 1. Calculate EMA 9 and 21
-  // 2. Detect crossovers (bullish: ema9 crosses above ema21)
-  // 3. Filter by entry window
-  // 4. Handle immediate reversals
-  // 5. Apply exit logic (opposite crossover or 15:00)
+  // 1. Calculate EMAs on spot closes
+  // 2. Detect crossovers on CLOSED bars
+  // 3. Check exits FIRST (always honored)
+  // 4. Check entries (gated by entry window)
+  // 5. Handle immediate reversals (within window only)
+  // 6. Select strike/expiry for valid signals
 }
 ```
 
@@ -500,10 +626,10 @@ function generateSignals(
 ## Security Architecture
 
 ### Encryption
-- **Algorithm**: AES-256-GCM
-- **Key Derivation**: PBKDF2 with 100,000 iterations
+- **Algorithm**: AES-256-GCM (envelope encryption)
+- **Key Derivation**: PBKDF2 with 600,000 iterations
 - **Per-field encryption** for API credentials
-- **Key rotation** every 90 days
+- **Master key from OS keychain/env** (not in DB)
 
 ### Authentication Flow
 ```
@@ -526,7 +652,7 @@ function generateSignals(
 
 ### Audit Requirements
 - Every financial action logged
-- Immutable audit trail (append-only)
+- Immutable audit trail (append-only via RLS)
 - IP + User-Agent tracked
 - 7-year retention
 
@@ -537,20 +663,20 @@ function generateSignals(
 ### Development
 ```
 Local Machine
-├── Bun (API + Frontend dev server)
+├── Bun (API + Frontend dev server + Engine)
 ├── Neon PostgreSQL (dev branch)
 └── ngrok (for Groww webhook testing)
 ```
 
-### Production (Recommended)
+### Production
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Cloudflare / Vercel                     │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │  Frontend   │  │   Edge      │  │   Cron Triggers     │  │
-│  │  (Static)   │  │   Functions │  │   (Market Hours)    │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      Vercel / Cloudflare                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │  Frontend   │  │   Edge      │  │   Cron Triggers         │  │
+│  │  (Static)   │  │   Functions │  │   (Daily Ingestion)     │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
                               │
                     ┌─────────┴─────────┐
                     ▼                   ▼
@@ -561,6 +687,15 @@ Local Machine
             └───────────────┘   │  - Cache      │
                                 │  - Rate Limit │
                                 └───────────────┘
+
+Always-on Engine Host (VPS/Docker):
+┌─────────────────────────────────────────────┐
+│  Engine (Bun)                               │
+│  - Groww WebSocket                          │
+│  - Paper/Live Trading Loop                  │
+│  - Reconciliation on Start                  │
+│  - Emergency Stop (CLI + API)               │
+└─────────────────────────────────────────────┘
 ```
 
 ---
@@ -584,5 +719,5 @@ Local Machine
 
 ---
 
-*Architecture version: 1.0*
-*Last updated: 2026-11-24*
+*Architecture version: 2.0 (updated to reflect engine app, split trade tables, corrected schema)*
+*Last updated: 2026-11-25*
