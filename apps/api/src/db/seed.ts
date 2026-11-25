@@ -4,6 +4,7 @@
 
 import { db } from './index';
 import { instruments, costConfigs } from './schema';
+import { eq } from 'drizzle-orm';
 import { logger } from '../logger';
 
 const sampleInstruments = [
@@ -92,42 +93,65 @@ const sampleCostConfig = {
 export async function seed(): Promise<void> {
   logger.info('Seeding database...');
 
-  for (const inst of sampleInstruments) {
+  try {
+    for (const inst of sampleInstruments) {
+      await db
+        .insert(instruments)
+        .values(inst)
+        .onConflictDoUpdate({
+          target: instruments.growwToken,
+          set: {
+            name: inst.name,
+            lotSize: inst.lotSize,
+            tickSize: inst.tickSize,
+            strikeStep: inst.strikeStep,
+            isActive: inst.isActive,
+            validFrom: inst.validFrom,
+            validTo: inst.validTo,
+          },
+        });
+    }
+    logger.info({ count: sampleInstruments.length }, 'Upserted instruments');
+
     await db
-      .insert(instruments)
-      .values(inst)
+      .insert(costConfigs)
+      .values(sampleCostConfig)
       .onConflictDoUpdate({
-        target: instruments.growwToken,
+        target: costConfigs.effectiveFrom,
         set: {
-          name: inst.name,
-          lotSize: inst.lotSize,
-          tickSize: inst.tickSize,
-          strikeStep: inst.strikeStep,
-          isActive: inst.isActive,
-          validFrom: inst.validFrom,
-          validTo: inst.validTo,
+          brokeragePerOrder: sampleCostConfig.brokeragePerOrder,
+          sttPct: sampleCostConfig.sttPct,
+          exchangePct: sampleCostConfig.exchangePct,
+          gstPct: sampleCostConfig.gstPct,
+          sebiPerCrore: sampleCostConfig.sebiPerCrore,
+          stampPct: sampleCostConfig.stampPct,
+          defaultSpreadPct: sampleCostConfig.defaultSpreadPct,
+          slippageSpreadFraction: sampleCostConfig.slippageSpreadFraction,
         },
       });
-  }
-  logger.info({ count: sampleInstruments.length }, 'Upserted instruments');
+    logger.info('Upserted cost config');
+  } catch (err: unknown) {
+    const pgCode = (err as { code?: string })?.code;
+    if (pgCode !== '42P10') throw err;
 
-  await db
-    .insert(costConfigs)
-    .values(sampleCostConfig)
-    .onConflictDoUpdate({
-      target: costConfigs.effectiveFrom,
-      set: {
-        brokeragePerOrder: sampleCostConfig.brokeragePerOrder,
-        sttPct: sampleCostConfig.sttPct,
-        exchangePct: sampleCostConfig.exchangePct,
-        gstPct: sampleCostConfig.gstPct,
-        sebiPerCrore: sampleCostConfig.sebiPerCrore,
-        stampPct: sampleCostConfig.stampPct,
-        defaultSpreadPct: sampleCostConfig.defaultSpreadPct,
-        slippageSpreadFraction: sampleCostConfig.slippageSpreadFraction,
-      },
-    });
-  logger.info('Upserted cost config');
+    logger.warn('Unique index missing in DB (run `bun run db:push`); falling back to idempotent seed');
+    for (const inst of sampleInstruments) {
+      const existing = await db
+        .select({ id: instruments.id })
+        .from(instruments)
+        .where(eq(instruments.growwToken, inst.growwToken));
+      if (existing.length === 0) {
+        await db.insert(instruments).values(inst);
+      }
+    }
+    const existingCost = await db
+      .select({ id: costConfigs.id })
+      .from(costConfigs)
+      .where(eq(costConfigs.effectiveFrom, sampleCostConfig.effectiveFrom));
+    if (existingCost.length === 0) {
+      await db.insert(costConfigs).values(sampleCostConfig);
+    }
+  }
 
   logger.info('Seed complete.');
 }

@@ -73,11 +73,13 @@ export class GrowwClient {
   private async login(totpToken: string, totpSecret: string): Promise<void> {
     const totp = authenticator.generate(totpSecret);
 
-    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/auth/login`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/token/api/access`, {
       method: 'POST',
       headers: {
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${totpToken}`,
+        'X-API-VERSION': '1.0',
       },
       body: JSON.stringify({ key_type: 'totp', totp }),
     });
@@ -97,38 +99,11 @@ export class GrowwClient {
   }
 
   private async refreshAccessToken(): Promise<void> {
-    if (!this.refreshToken) {
-      if (this.totpToken && this.totpSecret) {
-        await this.login(this.totpToken, this.totpSecret);
-        return;
-      }
-      throw new Error('No refresh token or TOTP credentials available');
+    if (this.totpToken && this.totpSecret) {
+      await this.login(this.totpToken, this.totpSecret);
+      return;
     }
-
-    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.refreshToken}`,
-      },
-    });
-
-    if (!response.ok) {
-      if (this.totpToken && this.totpSecret) {
-        await this.login(this.totpToken, this.totpSecret);
-        return;
-      }
-      throw new Error('Token refresh failed, re-login needed');
-    }
-
-    const data = (await response.json()) as GrowwAuthResponse;
-    this.accessToken = data.access_token ?? data.token ?? null;
-    this.refreshToken = data.refresh_token ?? this.refreshToken;
-    const expiresInSec = data.expires_in ?? 12 * 3600;
-    this.tokenExpiry = new Date(Date.now() + expiresInSec * 1000);
-
-    await this.storeTokens();
-    this.logger.info('Access token refreshed');
+    throw new Error('No TOTP credentials available for token refresh');
   }
 
   private async storeTokens(): Promise<void> {
