@@ -27,7 +27,7 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S2-009](sprints/sprint-2.md#S2-009) | Verify ≥90% coverage gate (currently 88.27% lines) | 🔴 | 2026-12-06 |
+| [S2-009](sprints/sprint-2.md#S2-009) | Verify ≥90% coverage gate (core modules ≥97%, overall 88.55% incl. shared/example) | 🟡 | 2026-12-06 |
 
 ---
 

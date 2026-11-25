@@ -20,6 +20,8 @@ docs/progress/
 │   ├── sprint-4.md                  ← Engine paper trading (Dec 15–22)
 │   ├── sprint-5.md                  ← Frontend dashboard (Dec 23–Jan 1)
 │   └── sprint-6.md                  ← Live trading + deploy (Jan 5–11)
+├── references/
+│   └── day-trader-skill.md          ← External pattern evaluation
 └── daily/
     ├── 2026-11-26.md                ← Today's log
     └── template.md                  ← Daily log template
