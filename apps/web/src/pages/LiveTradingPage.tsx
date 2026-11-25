@@ -1,0 +1,211 @@
+import { useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { AlertTriangle, CheckCircle2, ShieldAlert, XCircle } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+
+interface GateItem {
+  passed: boolean;
+  actual?: number;
+  required?: number;
+  maxAllowed?: number;
+}
+
+interface GatesResponse {
+  envEnabled: boolean;
+  liveTradingEnabled: boolean;
+  gates: {
+    paperTradeCount: GateItem;
+    profitFactor: GateItem;
+    maxDrawdownPct: GateItem;
+    adminApproved: GateItem;
+    growwCredentials: GateItem;
+    envFlag: GateItem;
+  };
+}
+
+export function LiveTradingPage() {
+  const [confirmStop, setConfirmStop] = useState(false);
+  const [feedback, setFeedback] = useState('');
+
+  const { data: gatesData, refetch } = useQuery<GatesResponse>({
+    queryKey: ['live-gates'],
+    queryFn: async () => {
+      const res = await fetch('/api/live/gates', { credentials: 'include' });
+      if (!res.ok) throw new Error('Sign in required to inspect live trading gates');
+      return res.json();
+    },
+    retry: false,
+  });
+
+  const enableMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/live/enable', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? 'Failed to enable live trading');
+      return json;
+    },
+    onSuccess: () => {
+      setFeedback('Live trading enabled.');
+      void refetch();
+    },
+    onError: (e: Error) => setFeedback(e.message),
+  });
+
+  const emergencyStopMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/live/emergency-stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason: 'Manual Emergency Stop from AI Trader UI' }),
+      });
+      if (!res.ok) throw new Error('Emergency stop failed');
+      return res.json();
+    },
+    onSuccess: () => {
+      setConfirmStop(false);
+      setFeedback('EMERGENCY STOP sent: cancelling orders, closing positions, disabling live mode.');
+      void refetch();
+    },
+    onError: (e: Error) => setFeedback(e.message),
+  });
+
+  const gateRows = gatesData
+    ? [
+        {
+          label: 'Completed Paper Trades',
+          detail: `${gatesData.gates.paperTradeCount.actual ?? 0} / ${gatesData.gates.paperTradeCount.required ?? 100}`,
+          passed: gatesData.gates.paperTradeCount.passed,
+        },
+        {
+          label: 'Paper Profit Factor',
+          detail: `${gatesData.gates.profitFactor.actual ?? 0} (must be > 1.5)`,
+          passed: gatesData.gates.profitFactor.passed,
+        },
+        {
+          label: 'Max Paper Drawdown',
+          detail: `${gatesData.gates.maxDrawdownPct.actual ?? 0}% (must be < 10%)`,
+          passed: gatesData.gates.maxDrawdownPct.passed,
+        },
+        {
+          label: 'Admin Approval',
+          detail: gatesData.gates.adminApproved.passed ? 'Approved' : 'Pending approval',
+          passed: gatesData.gates.adminApproved.passed,
+        },
+        {
+          label: 'Groww Access Token',
+          detail: gatesData.gates.growwCredentials.passed ? 'Valid' : 'Needs sync in Settings',
+          passed: gatesData.gates.growwCredentials.passed,
+        },
+        {
+          label: 'Server ENABLE_LIVE_TRADING',
+          detail: gatesData.gates.envFlag.passed ? 'true' : 'false (safe default)',
+          passed: gatesData.gates.envFlag.passed,
+        },
+      ]
+    : [];
+
+  const allPassed = gateRows.length > 0 && gateRows.every((g) => g.passed);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-white">Live Trading Desk</h2>
+          <p className="text-sm text-slate-400">
+            6-gate safety verification &amp; instant emergency kill-switch
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Badge variant={gatesData?.liveTradingEnabled ? 'danger' : 'warning'}>
+            <ShieldAlert className="h-3.5 w-3.5" />
+            {gatesData?.liveTradingEnabled ? 'LIVE ARMED' : 'LIVE GATED (PAPER DEFAULT)'}
+          </Badge>
+          <Button variant="danger" onClick={() => setConfirmStop(true)}>
+            <AlertTriangle className="h-4 w-4" />
+            Emergency Stop
+          </Button>
+        </div>
+      </div>
+
+      {feedback && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">
+          {feedback}
+        </div>
+      )}
+
+      {confirmStop && (
+        <Card className="border-rose-500/50 bg-rose-950/30">
+          <CardHeader>
+            <CardTitle className="text-rose-300">Confirm Immediate Emergency Stop</CardTitle>
+            <CardDescription>
+              Cancels all open Groww orders, squares off all live positions at market, and disables live mode.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-3">
+            <Button
+              variant="danger"
+              onClick={() => emergencyStopMutation.mutate()}
+              disabled={emergencyStopMutation.isPending}
+            >
+              Confirm Kill Switch
+            </Button>
+            <Button variant="outline" onClick={() => setConfirmStop(false)}>
+              Cancel
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>6-Gate Live Prerequisites</CardTitle>
+            <CardDescription>All 6 checks must pass before live capital can be deployed</CardDescription>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!allPassed || enableMutation.isPending}
+            onClick={() => enableMutation.mutate()}
+          >
+            Enable Live Mode
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {gateRows.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              Sign in via Settings to inspect your live trading gate status.
+            </p>
+          ) : (
+            <div className="divide-y divide-slate-800/80">
+              {gateRows.map((row) => (
+                <div key={row.label} className="flex items-center justify-between py-3 text-sm">
+                  <div>
+                    <div className="font-medium text-slate-100">{row.label}</div>
+                    <div className="font-mono text-xs text-slate-400">{row.detail}</div>
+                  </div>
+                  {row.passed ? (
+                    <Badge variant="success">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> PASS
+                    </Badge>
+                  ) : (
+                    <Badge variant="danger">
+                      <XCircle className="h-3.5 w-3.5" /> BLOCKED
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

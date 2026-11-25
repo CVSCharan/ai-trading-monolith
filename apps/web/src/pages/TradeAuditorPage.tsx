@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TradeCandlestickChart, type ChartCandle } from '../components/charts/TradeCandlestickChart';
+import { TradeContextPanel } from '../components/TradeContextPanel';
 
 interface TradeRecord {
   id: string;
@@ -114,39 +115,21 @@ export function TradeAuditorPage() {
             />
           </div>
 
-          <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm">
-            <h3 className="font-semibold text-white">Execution Context</h3>
-            <div className="flex justify-between text-slate-300">
-              <span>Side / Qty</span>
-              <span>{trade.side} · {trade.quantity}</span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Entry Price</span>
-              <span>₹{Number(trade.entryPrice).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Exit Price</span>
-              <span>{trade.exitPrice ? `₹${Number(trade.exitPrice).toFixed(2)}` : '—'}</span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Gross P&amp;L</span>
-              <span>₹{Number(trade.grossPnl ?? 0).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Total Costs</span>
-              <span className="text-amber-400">₹{Number(trade.costs ?? 0).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between border-t border-slate-800 pt-2 font-semibold">
-              <span>Net P&amp;L</span>
-              <span className={Number(trade.netPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                ₹{Number(trade.netPnl ?? 0).toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs text-slate-400">
-              <span>Exit Reason</span>
-              <span>{trade.exitReason ?? '—'}</span>
-            </div>
-          </div>
+          <TradeContextPanel
+            trade={{
+              id: trade.id,
+              symbol: trade.symbol,
+              optionSymbol: trade.optionSymbol,
+              side: trade.side,
+              quantity: trade.quantity,
+              entryPrice: trade.entryPrice,
+              exitPrice: trade.exitPrice,
+              grossPnl: trade.grossPnl,
+              totalCosts: trade.costs,
+              netPnl: trade.netPnl,
+              closedReason: trade.exitReason,
+            }}
+          />
         </div>
       )}
     </div>

@@ -68,14 +68,7 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S7-001](sprints/sprint-7.md#S7-001) | Fix Tailwind/PostCSS CWD resolution & design tokens | 🔴 | 2027-01-12 |
-| [S7-002](sprints/sprint-7.md#S7-002) | Collapsible sidebar, header status & AuthGuard/LiveGuard | 🔴 | 2027-01-12 |
-| [S7-003](sprints/sprint-7.md#S7-003) | Full Dashboard (Recharts sparkline, PortfolioBar, SignalFeed) | 🔴 | 2027-01-13 |
-| [S7-004](sprints/sprint-7.md#S7-004) | TradeContextPanel (option chain, Greeks, cost breakdown) | 🟡 | 2027-01-13 |
-| [S7-005](sprints/sprint-7.md#S7-005) | BacktestResultsPage Recharts equity curve & pagination | 🟡 | 2027-01-14 |
-| [S7-006](sprints/sprint-7.md#S7-006) | LiveTradingPage (6-gate checklist + Emergency Stop UI) | 🔴 | 2027-01-14 |
-| [S7-007](sprints/sprint-7.md#S7-007) | SettingsPage (`.env` Groww status, token refresh & risk guardrails) | 🔴 | 2027-01-15 |
-| [S7-008](sprints/sprint-7.md#S7-008) | Browser visual inspection & responsive audit (DevTools) | 🔴 | 2027-01-16 |
+| [S7-008](sprints/sprint-7.md#S7-008) | Browser visual inspection & responsive audit (DevTools — requires Chrome remote debugging enabled) | 🔴 | 2027-01-16 |
 
 ---
 
@@ -137,6 +130,7 @@
 | S5-001..004 | Scaffold `apps/web` (Vite + React 18 + Tailwind + Router + TanStack Query + API proxy) | 2026-11-26 |
 | S5-005..014 | Implement `useWebSocket`, `TradeCandlestickChart`, `TradeAuditorPage` (`←`/`→`), `StrategyBuilderPage`, `BacktestResultsPage`, `PaperTradingPage`, `SettingsPage`, `App.tsx` | 2026-11-26 |
 | S6-001..010, S6-013 | Implement `GET /api/live/gates`, `LiveTradingEngine` (5 risk checks, idempotency, partial fills, 15:00 square-off), `AlertingService`, `emergency-stop.ts`, `Dockerfile`, `vercel.json`, crash handlers, `live-engine.test.ts` | 2026-11-26 |
+| S7-001..007 | Fix Tailwind CWD resolution (`17.06 kB` CSS, 0 warnings), add `shadcn/ui` primitives, `PortfolioBar`, `SignalFeed`, `EquityAreaChart`, `DashboardPage`, `TradeContextPanel`, `LiveTradingPage`, `.env`-aware `SettingsPage` + `/api/groww/status` & `/sync` fallback | 2026-11-26 |
 
 ---
 

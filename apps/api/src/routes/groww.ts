@@ -78,13 +78,27 @@ export const growwRoutes = new Elysia({ prefix: '/api/groww' })
       .where(eq(growwCredentials.userId, userId))
       .limit(1);
 
+    const envToken = process.env['GROWW_TOTP_TOKEN'] ?? process.env['GROWW_API_KEY'];
+    const envSecret = process.env['GROWW_TOTP_SECRET'];
+    const hasEnv = Boolean(envToken && envSecret);
+
     if (!cred) {
-      return { connected: false, isActive: false };
+      return {
+        connected: hasEnv,
+        isActive: hasEnv,
+        source: hasEnv ? ('env' as const) : ('none' as const),
+        envConfigured: hasEnv,
+        maskedKey: envToken ? `${envToken.slice(0, 6)}••••${envToken.slice(-4)}` : null,
+        tokenValid: false,
+      };
     }
 
     return {
       connected: true,
       isActive: Boolean(cred.isActive),
+      source: 'db' as const,
+      envConfigured: hasEnv,
+      maskedKey: envToken ? `${envToken.slice(0, 6)}••••${envToken.slice(-4)}` : 'DB-ENCRYPTED',
       tokenValid: Boolean(cred.tokenExpiresAt && cred.tokenExpiresAt > new Date()),
       tokenExpiresAt: cred.tokenExpiresAt,
       lastRefreshAt: cred.lastRefreshAt,
@@ -100,14 +114,23 @@ export const growwRoutes = new Elysia({ prefix: '/api/groww' })
       .where(eq(growwCredentials.userId, userId))
       .limit(1);
 
-    if (!cred) {
-      set.status = 404;
-      return { error: 'Groww credentials not connected' };
+    const masterKey = getMasterKey();
+    let totpToken: string | undefined;
+    let totpSecret: string | undefined;
+
+    if (cred) {
+      totpToken = decrypt(cred.apiKeyEncrypted, masterKey);
+      totpSecret = decrypt(cred.totpSecretEncrypted, masterKey);
+    } else {
+      totpToken = process.env['GROWW_TOTP_TOKEN'] ?? process.env['GROWW_API_KEY'];
+      totpSecret = process.env['GROWW_TOTP_SECRET'];
     }
 
-    const masterKey = getMasterKey();
-    const totpToken = decrypt(cred.apiKeyEncrypted, masterKey);
-    const totpSecret = decrypt(cred.totpSecretEncrypted, masterKey);
+    if (!totpToken || !totpSecret) {
+      set.status = 404;
+      return { error: 'Groww TOTP credentials not found in DB or .env' };
+    }
+
     const totp = authenticator.generate(totpSecret);
 
     const response = await fetch(`${GROWW_API_BASE_URL}/v1/token/api/access`, {
@@ -138,24 +161,39 @@ export const growwRoutes = new Elysia({ prefix: '/api/groww' })
     }
 
     const expiresAt = new Date(Date.now() + (data.expires_in ?? 12 * 3600) * 1000);
+    const accessTokenEncrypted = encrypt(accessToken, masterKey);
+
     await db
-      .update(growwCredentials)
-      .set({
-        accessTokenEncrypted: encrypt(accessToken, masterKey),
+      .insert(growwCredentials)
+      .values({
+        userId,
+        apiKeyEncrypted: cred?.apiKeyEncrypted ?? encrypt(totpToken, masterKey),
+        apiSecretEncrypted: null,
+        totpSecretEncrypted: cred?.totpSecretEncrypted ?? encrypt(totpSecret, masterKey),
+        accessTokenEncrypted,
         tokenExpiresAt: expiresAt,
         lastRefreshAt: new Date(),
-        refreshCountToday: sql`${growwCredentials.refreshCountToday} + 1`,
-        updatedAt: new Date(),
+        refreshCountToday: 1,
+        isActive: true,
       })
-      .where(eq(growwCredentials.userId, userId));
+      .onConflictDoUpdate({
+        target: growwCredentials.userId,
+        set: {
+          accessTokenEncrypted,
+          tokenExpiresAt: expiresAt,
+          lastRefreshAt: new Date(),
+          refreshCountToday: sql`${growwCredentials.refreshCountToday} + 1`,
+          updatedAt: new Date(),
+        },
+      });
 
     await logAuditEvent({
       userId,
       action: 'GROWW_TOKEN_SYNCED',
       entityType: 'groww_credentials',
-      entityId: cred.id,
+      entityId: cred?.id ?? userId,
       ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
     });
 
-    return { synced: true, tokenExpiresAt: expiresAt };
+    return { synced: true, tokenExpiresAt: expiresAt, source: cred ? 'db' : 'env' };
   });
