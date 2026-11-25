@@ -197,6 +197,16 @@ async function shutdown() {
   process.exit(0);
 }
 
+// Global process crash handlers (S6-013)
+process.on('unhandledRejection', (reason) => {
+  logger.fatal({ err: reason }, 'Unhandled promise rejection in trading engine');
+});
+
+process.on('uncaughtException', (error) => {
+  logger.fatal({ err: error }, 'Uncaught exception in trading engine — initiating shutdown');
+  void shutdown();
+});
+
 // Start the engine
 startEngine().catch((error) => {
   logger.fatal({ err: error }, 'Failed to start engine');

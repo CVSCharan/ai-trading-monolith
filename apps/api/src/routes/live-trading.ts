@@ -22,6 +22,67 @@ const EmergencyStopSchema = z.object({
 export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
   .use(authPlugin)
   .use(createRateLimitPlugin({ name: 'live-trading', maxRequests: 10, windowMs: 60_000 }))
+  .get('/gates', async ({ userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const envEnabled = process.env['ENABLE_LIVE_TRADING'] === 'true';
+    const [profile] = await db
+      .select()
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId))
+      .limit(1);
+
+    const [cred] = await db
+      .select({ isActive: growwCredentials.isActive, tokenExpiresAt: growwCredentials.tokenExpiresAt })
+      .from(growwCredentials)
+      .where(eq(growwCredentials.userId, userId))
+      .limit(1);
+
+    const [portfolio] = await db
+      .select({ id: paperPortfolios.id, dayStartValue: paperPortfolios.dayStartValue })
+      .from(paperPortfolios)
+      .where(eq(paperPortfolios.userId, userId))
+      .limit(1);
+
+    const trades = portfolio
+      ? await db
+          .select({ netPnl: paperTrades.netPnl })
+          .from(paperTrades)
+          .where(eq(paperTrades.portfolioId, portfolio.id))
+      : [];
+
+    const pnls = trades.map((t) => Number(t.netPnl ?? 0));
+    const wins = pnls.filter((p) => p > 0).reduce((s, p) => s + p, 0);
+    const losses = Math.abs(pnls.filter((p) => p < 0).reduce((s, p) => s + p, 0));
+    const profitFactor = losses > 0 ? wins / losses : wins > 0 ? 999 : 0;
+
+    let equity = Number(portfolio?.dayStartValue ?? 1000000);
+    let peak = equity;
+    let maxDrawdownPct = 0;
+    for (const p of pnls) {
+      equity += p;
+      if (equity > peak) peak = equity;
+      const dd = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
+      if (dd > maxDrawdownPct) maxDrawdownPct = dd;
+    }
+
+    const tokenValid =
+      Boolean(cred?.isActive) &&
+      (!cred?.tokenExpiresAt || cred.tokenExpiresAt.getTime() > Date.now());
+
+    return {
+      envEnabled,
+      liveTradingEnabled: Boolean(profile?.liveTradingEnabled),
+      gates: {
+        paperTradeCount: { actual: trades.length, required: 100, passed: trades.length >= 100 },
+        profitFactor: { actual: Number(profitFactor.toFixed(2)), required: 1.5, passed: profitFactor > 1.5 },
+        maxDrawdownPct: { actual: Number(maxDrawdownPct.toFixed(2)), maxAllowed: 10, passed: maxDrawdownPct < 10 },
+        adminApproved: { passed: Boolean(profile?.liveTradingApprovedAt) },
+        growwCredentials: { passed: tokenValid },
+        envFlag: { passed: envEnabled },
+      },
+    };
+  })
   .post('/enable', async ({ userId, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
 

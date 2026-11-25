@@ -59,19 +59,8 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S6-001](sprints/sprint-6.md#S6-001) | Live trading gate prerequisites check | 🔴 | 2027-01-05 |
-| [S6-002](sprints/sprint-6.md#S6-002) | live-engine.ts — placeOrder with 5 risk checks | 🔴 | 2027-01-05 |
-| [S6-003](sprints/sprint-6.md#S6-003) | live-engine.ts — 15:00 unconditional square-off | 🔴 | 2027-01-06 |
-| [S6-004](sprints/sprint-6.md#S6-004) | Idempotency key — generate before API call | 🔴 | 2027-01-06 |
-| [S6-005](sprints/sprint-6.md#S6-005) | Partial fill tracking | 🟡 | 2027-01-07 |
-| [S6-006](sprints/sprint-6.md#S6-006) | emergency-stop.ts CLI script | 🔴 | 2027-01-07 |
-| [S6-007](sprints/sprint-6.md#S6-007) | Dockerfile (Bun base, engine app) | 🟡 | 2027-01-08 |
-| [S6-008](sprints/sprint-6.md#S6-008) | Vercel deploy config (web + api) | 🟡 | 2027-01-08 |
-| [S6-009](sprints/sprint-6.md#S6-009) | Pino structured logging → Vercel/VPS | 🟡 | 2027-01-09 |
-| [S6-010](sprints/sprint-6.md#S6-010) | Alerting: email on live error + daily loss >1.5% | 🔴 | 2027-01-09 |
-| [S6-011](sprints/sprint-6.md#S6-011) | Pre-live validation checklist (12 items) | 🔴 | 2027-01-10 |
-| [S6-012](sprints/sprint-6.md#S6-012) | Final deployment + smoke test | 🔴 | 2027-01-11 |
-| [S6-013](sprints/sprint-6.md) | Process crash handlers (`unhandledRejection`) + CI coverage gate | 🔴 | 2027-01-10 |
+| [S6-011](sprints/sprint-6.md#S6-011) | Pre-live validation checklist (12 items, requires 100+ paper trades) | 🔴 | 2027-01-10 |
+| [S6-012](sprints/sprint-6.md#S6-012) | Final production deployment + smoke test | 🔴 | 2027-01-11 |
 
 ---
 
@@ -135,6 +124,7 @@
 | S4-013..014 | Add `paper-engine.test.ts` (Sprint 4 complete) | 2026-11-26 |
 | S5-001..004 | Scaffold `apps/web` (Vite + React 18 + Tailwind + Router + TanStack Query + API proxy) | 2026-11-26 |
 | S5-005..014 | Implement `useWebSocket`, `TradeCandlestickChart`, `TradeAuditorPage` (`←`/`→`), `StrategyBuilderPage`, `BacktestResultsPage`, `PaperTradingPage`, `SettingsPage`, `App.tsx` | 2026-11-26 |
+| S6-001..010, S6-013 | Implement `GET /api/live/gates`, `LiveTradingEngine` (5 risk checks, idempotency, partial fills, 15:00 square-off), `AlertingService`, `emergency-stop.ts`, `Dockerfile`, `vercel.json`, crash handlers, `live-engine.test.ts` | 2026-11-26 |
 
 ---
 
