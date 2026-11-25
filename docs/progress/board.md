@@ -35,10 +35,6 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S3-008](sprints/sprint-3.md#S3-008) | Implement routes/market-data.ts | 🟡 | 2026-12-11 |
-| [S3-009](sprints/sprint-3.md#S3-009) | Implement routes/paper-trading.ts | 🟡 | 2026-12-12 |
-| [S3-010](sprints/sprint-3.md#S3-010) | Implement routes/live-trading.ts (gated) | 🔴 | 2026-12-12 |
-| [S3-011](sprints/sprint-3.md#S3-011) | Implement routes/trade.ts (trade auditor) | 🟡 | 2026-12-13 |
 | [S3-012](sprints/sprint-3.md#S3-012) | WebSocket manager + LISTEN/NOTIFY bridge | 🔴 | 2026-12-13 |
 | [S3-013](sprints/sprint-3.md#S3-013) | Backtest job queue (Postgres table + worker) | 🟡 | 2026-12-14 |
 | [S3-014](sprints/sprint-3.md#S3-014) | Sprint 3 checklist verification | 🔴 | 2026-12-14 |
@@ -146,6 +142,7 @@
 | S3-001..004 | Implement `auth`, `rate-limit`, `audit`, `risk` middleware | 2026-11-26 |
 | S3-015..016 | Add correlation IDs, global error handler, DB `/health` ping & graceful shutdown | 2026-11-26 |
 | S3-005..007 | Implement `groww`, `strategy` (CRUD+clone), `backtest` (run+trades+equity) routes | 2026-11-26 |
+| S3-008..011 | Implement `market-data`, `paper-trading`, `live-trading` (gated), `trade` (auditor) routes | 2026-11-26 |
 
 ---
 
