@@ -5,10 +5,21 @@
 import pino from 'pino';
 import { db } from '../index';
 import { engineCommands, engineState, reconciliationState } from '../db/command-state';
-import { paperPortfolios, paperPositions, paperTrades } from '../../../api/src/db/schema';
-import { eq, and, isNull, desc, sql } from 'drizzle-orm';
+import {
+  instruments as instrumentsTable,
+  liveFills,
+  livePositions,
+  paperPortfolios,
+  paperPositions,
+  strategies as strategiesTable,
+} from '../../../api/src/db/schema';
+import { eq, and, inArray, isNull, desc, sql } from 'drizzle-orm';
 import { GrowwClient } from './groww-client';
-import { StreamingSignalGenerator } from '@groww-trading/strategy-core';
+import {
+  StreamingSignalGenerator,
+  type Instrument,
+  type StrategyConfig,
+} from '@groww-trading/strategy-core';
 import { config } from '../config';
 
 export class CommandProcessor {
@@ -214,26 +225,173 @@ export class CommandProcessor {
     return { updated: true };
   }
 
-  private async loadStrategy(strategyId: string): Promise<any> {
-    // Load from database
-    return null; // Placeholder
+  private async loadStrategy(strategyId: string): Promise<StrategyConfig | null> {
+    const [row] = await this.db
+      .select()
+      .from(strategiesTable)
+      .where(eq(strategiesTable.id, strategyId))
+      .limit(1);
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      name: row.name,
+      underlyingSymbol: row.underlyingSymbol,
+      timeframe: row.timeframe,
+      entryWindow: {
+        start: String(row.entryStartTime).slice(0, 5),
+        end: String(row.entryEndTime).slice(0, 5),
+      },
+      exitTime: String(row.exitTime).slice(0, 5),
+      executionMode: row.executionMode,
+      strikeOffset: row.strikeOffset ?? 5,
+      lots: row.lots ?? 1,
+      expiryPreference: (row.expiryPreference ?? 'WEEKLY') as 'WEEKLY' | 'MONTHLY',
+      avoidExpiryDays: row.avoidExpiryDays ?? 2,
+      risk: (row.riskParams ?? {
+        maxDailyLossPct: config.defaultRisk.maxDailyLossPct,
+        maxPositions: config.defaultRisk.maxPositions,
+        maxPositionsPerStrategy: 1,
+        perTradeRiskPct: config.defaultRisk.perTradeRiskPct,
+        blockedPeriods: ['09:15-09:30', '15:15-15:30'],
+        shortOptionStopLossPct: 100,
+      }) as StrategyConfig['risk'],
+    };
   }
 
-  private async loadInstruments(): Promise<any[]> {
-    // Load from database
-    return []; // Placeholder
+  private async loadInstruments(): Promise<Instrument[]> {
+    const rows = await this.db
+      .select()
+      .from(instrumentsTable)
+      .where(eq(instrumentsTable.isActive, true));
+
+    return rows.map((i: any) => ({
+      id: i.id,
+      symbol: i.symbol,
+      instrumentType: i.instrumentType,
+      lotSize: i.lotSize,
+      tickSize: Number(i.tickSize ?? 0.05),
+      strikeStep: i.strikeStep ?? 50,
+      underlyingSymbol: i.underlyingSymbol ?? undefined,
+      strikePrice: i.strikePrice ? Number(i.strikePrice) : undefined,
+      optionType: i.optionType ?? undefined,
+      expiryDate: i.expiryDate ? new Date(i.expiryDate) : undefined,
+      expiryType: i.expiryType ?? undefined,
+      validFrom: new Date(i.validFrom),
+      validTo: i.validTo ? new Date(i.validTo) : null,
+      growwToken: i.growwToken ?? '',
+      isActive: Boolean(i.isActive),
+    }));
   }
 
-  private async closeAllPaperPositions(portfolioId: string): Promise<void> {
-    // Implementation
+  private async closeAllPaperPositions(userId: string): Promise<void> {
+    const [portfolio] = await this.db
+      .select()
+      .from(paperPortfolios)
+      .where(eq(paperPortfolios.userId, userId))
+      .limit(1);
+
+    if (!portfolio) return;
+
+    const openPositions = await this.db
+      .select()
+      .from(paperPositions)
+      .where(and(eq(paperPositions.portfolioId, portfolio.id), isNull(paperPositions.closedAt)));
+
+    let totalRealized = 0;
+    for (const pos of openPositions) {
+      const entry = Number(pos.avgEntryPrice);
+      const exit = pos.currentPrice != null ? Number(pos.currentPrice) : entry;
+      const dir = pos.side === 'LONG' ? 1 : -1;
+      const pnl = (exit - entry) * pos.quantity * dir;
+      totalRealized += pnl;
+
+      await this.db
+        .update(paperPositions)
+        .set({
+          closedAt: new Date(),
+          realizedPnl: pnl.toFixed(2),
+          closedReason: 'emergency_stop',
+        })
+        .where(eq(paperPositions.id, pos.id));
+    }
+
+    if (openPositions.length > 0) {
+      const newCash = Number(portfolio.cashBalance) + totalRealized;
+      const newTotal = Number(portfolio.totalValue) + totalRealized;
+      await this.db
+        .update(paperPortfolios)
+        .set({
+          cashBalance: newCash.toFixed(2),
+          totalValue: newTotal.toFixed(2),
+          updatedAt: new Date(),
+        })
+        .where(eq(paperPortfolios.id, portfolio.id));
+    }
   }
 
   private async closeAllLivePositions(userId: string): Promise<void> {
-    // Implementation
+    const openPositions = await this.db
+      .select()
+      .from(livePositions)
+      .where(and(eq(livePositions.userId, userId), isNull(livePositions.closedAt)));
+
+    for (const pos of openPositions) {
+      try {
+        await this.growwClient.placeOrder({
+          symbol: pos.optionSymbol,
+          exchange: 'NSE',
+          quantity: pos.quantity,
+          side: pos.side === 'LONG' ? 'SELL' : 'BUY',
+          orderType: 'MARKET',
+          product: 'NRML',
+          validity: 'DAY',
+        });
+      } catch (err) {
+        this.logger.error({ err, positionId: pos.id, symbol: pos.optionSymbol }, 'Failed to place close order for live position');
+      }
+
+      const entry = Number(pos.avgEntryPrice);
+      const exit = pos.currentPrice != null ? Number(pos.currentPrice) : entry;
+      const dir = pos.side === 'LONG' ? 1 : -1;
+      const pnl = ((exit - entry) * pos.quantity * dir).toFixed(2);
+
+      await this.db
+        .update(livePositions)
+        .set({
+          closedAt: new Date(),
+          realizedPnl: pnl,
+          closedReason: 'emergency_stop',
+        })
+        .where(eq(livePositions.id, pos.id));
+    }
   }
 
   private async cancelAllOrders(userId: string): Promise<void> {
-    // Implementation
+    const pendingOrders = await this.db
+      .select()
+      .from(liveFills)
+      .where(
+        and(
+          eq(liveFills.userId, userId),
+          inArray(liveFills.status, ['PENDING', 'OPEN'])
+        )
+      );
+
+    for (const order of pendingOrders) {
+      if (order.growwOrderId) {
+        try {
+          await this.growwClient.cancelOrder(order.growwOrderId);
+        } catch (err) {
+          this.logger.error({ err, orderId: order.growwOrderId }, 'Failed to cancel Groww order');
+        }
+      }
+      await this.db
+        .update(liveFills)
+        .set({ status: 'CANCELLED', updatedAt: new Date(), completedAt: new Date() })
+        .where(eq(liveFills.id, order.id));
+    }
   }
 
   getActiveSessionCount(): number {

@@ -43,10 +43,6 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S4-001](sprints/sprint-4.md#S4-001) | Implement loadStrategy() in command-processor.ts | 🔴 | 2026-12-15 |
-| [S4-002](sprints/sprint-4.md#S4-002) | Implement loadInstruments() | 🔴 | 2026-12-15 |
-| [S4-003](sprints/sprint-4.md#S4-003) | Implement closeAllPaperPositions() | 🔴 | 2026-12-16 |
-| [S4-004](sprints/sprint-4.md#S4-004) | Implement closeAllLivePositions() + cancelAllOrders() | 🔴 | 2026-12-16 |
 | [S4-005](sprints/sprint-4.md#S4-005) | WebSocketManager with exponential backoff reconnect | 🔴 | 2026-12-17 |
 | [S4-006](sprints/sprint-4.md#S4-006) | Backfill missing bars on reconnect | 🔴 | 2026-12-17 |
 | [S4-007](sprints/sprint-4.md#S4-007) | paper-engine.ts — real-time tick → bar aggregation | 🔴 | 2026-12-18 |
@@ -54,7 +50,6 @@
 | [S4-009](sprints/sprint-4.md#S4-009) | paper-engine.ts — MTM update per tick | 🟡 | 2026-12-19 |
 | [S4-010](sprints/sprint-4.md#S4-010) | Scheduler — downloadDayCandles (15:30 IST cron) | 🟡 | 2026-12-19 |
 | [S4-011](sprints/sprint-4.md#S4-011) | Scheduler — syncInstrumentMaster (Mon 09:00 IST) | 🟡 | 2026-12-20 |
-| [S4-012](sprints/sprint-4.md#S4-012) | DB migration: add closedReason column | 🟡 | 2026-12-20 |
 | [S4-013](sprints/sprint-4.md#S4-013) | E2E test: paper session start → signal → position | 🔴 | 2026-12-21 |
 | [S4-014](sprints/sprint-4.md#S4-014) | E2E test: emergency stop closes all positions | 🔴 | 2026-12-22 |
 
@@ -142,6 +137,7 @@
 | S3-005..007 | Implement `groww`, `strategy` (CRUD+clone), `backtest` (run+trades+equity) routes | 2026-11-26 |
 | S3-008..011 | Implement `market-data`, `paper-trading`, `live-trading` (gated), `trade` (auditor) routes | 2026-11-26 |
 | S3-012..014 | Implement `ws-manager.ts`, `backtest-runner.ts`, `user.ts`, `engine.ts` (Sprint 3 complete) | 2026-11-26 |
+| S4-001..004, S4-012 | Implement `command-processor.ts` (`loadStrategy`, `loadInstruments`, `closeAll*`, `cancelAllOrders`) & `closedReason` schema | 2026-11-26 |
 
 ---
 
