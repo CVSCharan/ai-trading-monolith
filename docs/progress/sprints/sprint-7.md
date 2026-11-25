@@ -10,7 +10,13 @@
 
 ## Goal
 
-Upgrade the minimal Sprint 5 scaffold into a complete, styled, browser-verified trading terminal UI with real-time charts, option-chain/Greeks inspection, live-trading gate controls, and automated browser E2E verification.
+Upgrade the minimal Sprint 5 scaffold into a **classic, professional, modern institutional trading UI** built on **shadcn/ui** (`clsx`, `tailwind-merge`, `class-variance-authority`, Radix UI primitives) + **Tailwind CSS** + **Recharts** + **Lightweight Charts**, making overall trading performance, active positions, signals, and risk immediately scannable, with full Chrome DevTools browser verification.
+
+## Design Direction
+
+- **Aesthetic**: Classic modern pro trading desk (inspired by Linear / Bloomberg-lite / TradingView dark slate): crisp `1px` borders, subtle card elevation, high-contrast typography, `font-mono tabular-nums` for every price, strike, quantity, and P&L figure.
+- **Component System**: `shadcn/ui`-style accessible primitives in `apps/web/src/components/ui/` (`Button`, `Card`, `Badge`, `Table`, `Tabs`, `Dialog`, `Select`, `Tooltip`, `Separator`).
+- **Overall Trading Clarity**: At-a-glance KPI strip (Net Equity, Day P&L, Win Rate / Profit Factor, Active Mode & Engine Health), clear Emerald (`#10b981`) vs Rose (`#f43f5e`) P&L semantics, and 1-click drill-down from any trade row into the Trade Auditor candlestick + option context view.
 
 ---
 
@@ -27,11 +33,11 @@ Upgrade the minimal Sprint 5 scaffold into a complete, styled, browser-verified 
 
 ## Tickets
 
-### S7-001 — Fix Tailwind / PostCSS Resolution & Design Tokens {#S7-001}
+### S7-001 — Fix Tailwind/PostCSS Resolution + shadcn/ui Primitives {#S7-001}
 | **ETA** | 2027-01-12 | **Priority** | 🔴 Critical |
 |---------|------------|--------------|-------------|
 
-Fix `apps/web/vite.config.ts` / `apps/web/postcss.config.js` so Tailwind resolves `apps/web/tailwind.config.js` regardless of CWD (`vite build apps/web` from root vs `apps/web`). Define semantic design tokens (surface, border, bullish/emerald, bearish/rose, muted text) and verify CSS bundle size includes all utilities.
+Fix `apps/web/vite.config.ts` / `apps/web/postcss.config.js` so Tailwind resolves `apps/web/tailwind.config.js` regardless of CWD (`vite build apps/web` from root vs `apps/web`). Install `clsx`, `tailwind-merge`, `class-variance-authority`, and Radix primitives, and add `apps/web/src/components/ui/` (`Button`, `Card`, `Badge`, `Table`, `Tabs`, `Dialog`, `Select`) with `tabular-nums` financial styling.
 
 ### S7-002 — Collapsible Sidebar, Header Status & Route Guards {#S7-002}
 | **ETA** | 2027-01-12 | **Priority** | 🔴 Critical |
