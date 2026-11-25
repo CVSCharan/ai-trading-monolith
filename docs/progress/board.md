@@ -43,8 +43,7 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S4-013](sprints/sprint-4.md#S4-013) | E2E test: paper session start → signal → position | 🔴 | 2026-12-21 |
-| [S4-014](sprints/sprint-4.md#S4-014) | E2E test: emergency stop closes all positions | 🔴 | 2026-12-22 |
+| *(All Sprint 4 tickets complete!)* | — | — | — |
 
 ---
 
@@ -52,10 +51,6 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S5-001](sprints/sprint-5.md#S5-001) | Vite + React 18 + TS project init | 🔴 | 2026-12-23 |
-| [S5-002](sprints/sprint-5.md#S5-002) | Tailwind + shadcn/ui setup | 🟡 | 2026-12-23 |
-| [S5-003](sprints/sprint-5.md#S5-003) | App.tsx router + auth guard | 🔴 | 2026-12-24 |
-| [S5-004](sprints/sprint-5.md#S5-004) | Layout.tsx sidebar nav + header | 🟡 | 2026-12-24 |
 | [S5-005](sprints/sprint-5.md#S5-005) | AuthPage.tsx (Better Auth) | 🔴 | 2026-12-25 |
 | [S5-006](sprints/sprint-5.md#S5-006) | DashboardPage.tsx (equity, PnL, positions) | 🟡 | 2026-12-25 |
 | [S5-007](sprints/sprint-5.md#S5-007) | TradeCandlestickChart.tsx (EMA overlay + markers) | 🔴 | 2026-12-26 |
@@ -132,6 +127,8 @@
 | S3-012..014 | Implement `ws-manager.ts`, `backtest-runner.ts`, `user.ts`, `engine.ts` (Sprint 3 complete) | 2026-11-26 |
 | S4-001..004, S4-012 | Implement `command-processor.ts` (`loadStrategy`, `loadInstruments`, `closeAll*`, `cancelAllOrders`) & `closedReason` schema | 2026-11-26 |
 | S4-005..011 | Implement `websocket-manager.ts` reconnect/backfill, `paper-trading.ts` (MTM + risk + fills), `scheduler.ts` (IST cron) | 2026-11-26 |
+| S4-013..014 | Add `paper-engine.test.ts` (Sprint 4 complete) | 2026-11-26 |
+| S5-001..004 | Scaffold `apps/web` (Vite + React 18 + Tailwind + Router + TanStack Query + API proxy) | 2026-11-26 |
 
 ---
 
