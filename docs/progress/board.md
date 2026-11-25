@@ -75,6 +75,20 @@
 
 ---
 
+## 📋 TODO — Sprint 7 (Jan 12–16 · UI Polish & Browser Audit)
+
+| Ticket | Title | Priority | ETA |
+|--------|-------|----------|-----|
+| [S7-001](sprints/sprint-7.md#S7-001) | Fix Tailwind/PostCSS CWD resolution & design tokens | 🔴 | 2027-01-12 |
+| [S7-002](sprints/sprint-7.md#S7-002) | Collapsible sidebar, header status & AuthGuard/LiveGuard | 🔴 | 2027-01-12 |
+| [S7-003](sprints/sprint-7.md#S7-003) | Full Dashboard (Recharts sparkline, PortfolioBar, SignalFeed) | 🔴 | 2027-01-13 |
+| [S7-004](sprints/sprint-7.md#S7-004) | TradeContextPanel (option chain, Greeks, cost breakdown) | 🟡 | 2027-01-13 |
+| [S7-005](sprints/sprint-7.md#S7-005) | BacktestResultsPage Recharts equity curve & pagination | 🟡 | 2027-01-14 |
+| [S7-006](sprints/sprint-7.md#S7-006) | LiveTradingPage (6-gate checklist + Emergency Stop UI) | 🔴 | 2027-01-14 |
+| [S7-007](sprints/sprint-7.md#S7-007) | Browser visual inspection & responsive audit (DevTools) | 🔴 | 2027-01-15 |
+
+---
+
 ## ✅ DONE
 
 | Ticket | Title | Completed |
