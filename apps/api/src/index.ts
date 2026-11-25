@@ -8,8 +8,10 @@ import { jwt } from '@elysiajs/jwt';
 import { swagger } from '@elysiajs/swagger';
 import { config } from './config';
 import { logger } from './logger';
-import { db } from './db';
+import { pgClient } from './db';
 import { seed } from './db/seed';
+import { authPlugin } from './middleware/auth-middleware';
+import { createRateLimitPlugin } from './middleware/rate-limit-middleware';
 import { userRoutes } from './routes/user';
 import { strategyRoutes } from './routes/strategy';
 import { backtestRoutes } from './routes/backtest';
@@ -22,9 +24,28 @@ import { engineRoutes } from './routes/engine';
 import { auth } from './auth';
 
 const app = new Elysia()
-  .use(cors())
+  .derive(({ request, set }) => {
+    const requestId = request.headers.get('x-request-id') ?? crypto.randomUUID();
+    set.headers['x-request-id'] = requestId;
+    return { requestId };
+  })
+  .onError(({ code, error, requestId, set }) => {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    logger.error({ code, requestId, err: error }, 'Unhandled API error');
+    if (!set.status || set.status === 200) {
+      set.status = code === 'NOT_FOUND' ? 404 : code === 'VALIDATION' ? 400 : 500;
+    }
+    return {
+      error: message,
+      code,
+      requestId,
+    };
+  })
+  .use(cors({ origin: config.frontendUrl, credentials: true }))
   .use(jwt({ name: 'auth', secret: config.betterAuthSecret }))
   .use(swagger({ path: '/api-docs' }))
+  .use(createRateLimitPlugin({ name: 'api-global', maxRequests: 100, windowMs: 60_000 }))
+  .use(authPlugin)
   .use(userRoutes)
   .use(strategyRoutes)
   .use(backtestRoutes)
@@ -36,12 +57,32 @@ const app = new Elysia()
   .use(engineRoutes)
   .all('/api/auth/*', ({ request }) => auth.handler(request))
   .get('/', () => ({ status: 'ok' }))
-  .get('/health', () => ({ status: 'ok', timestamp: new Date().toISOString() }))
+  .get('/health', async ({ set }) => {
+    try {
+      await pgClient`SELECT 1`;
+      return { status: 'ok', db: 'connected', timestamp: new Date().toISOString() };
+    } catch (err) {
+      logger.error({ err }, 'Database health check failed');
+      set.status = 503;
+      return { status: 'degraded', db: 'disconnected', timestamp: new Date().toISOString() };
+    }
+  })
   .listen(config.port);
 
-logger.info({ url: app.server?.hostname }, 'API app started');
+logger.info({ port: config.port, url: app.server?.hostname }, 'API app started');
 
 // Seed database on startup
 seed().catch((err) => {
   logger.error({ err }, 'Database seed failed');
 });
+
+// Graceful shutdown
+async function shutdown(signal: string) {
+  logger.info({ signal }, 'Shutting down API server...');
+  app.stop();
+  await pgClient.end();
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));

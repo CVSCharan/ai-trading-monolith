@@ -35,10 +35,6 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S3-001](sprints/sprint-3.md#S3-001) | auth-middleware.ts (Better Auth session) | 🔴 | 2026-12-08 |
-| [S3-002](sprints/sprint-3.md#S3-002) | rate-limit-middleware.ts (Upstash sliding window) | 🔴 | 2026-12-08 |
-| [S3-003](sprints/sprint-3.md#S3-003) | audit-middleware.ts (auto-log financial actions) | 🔴 | 2026-12-09 |
-| [S3-004](sprints/sprint-3.md#S3-004) | risk-middleware.ts (pre-order risk checks) | 🔴 | 2026-12-09 |
 | [S3-005](sprints/sprint-3.md#S3-005) | Implement routes/groww.ts (connect/status/sync) | 🔴 | 2026-12-10 |
 | [S3-006](sprints/sprint-3.md#S3-006) | Implement routes/strategy.ts (full CRUD) | 🟡 | 2026-12-10 |
 | [S3-007](sprints/sprint-3.md#S3-007) | Implement routes/backtest.ts (run + poll) | 🟡 | 2026-12-11 |
@@ -49,8 +45,6 @@
 | [S3-012](sprints/sprint-3.md#S3-012) | WebSocket manager + LISTEN/NOTIFY bridge | 🔴 | 2026-12-13 |
 | [S3-013](sprints/sprint-3.md#S3-013) | Backtest job queue (Postgres table + worker) | 🟡 | 2026-12-14 |
 | [S3-014](sprints/sprint-3.md#S3-014) | Sprint 3 checklist verification | 🔴 | 2026-12-14 |
-| [S3-015](sprints/sprint-3.md) | Global error handler + correlation IDs + DB `/health` ping | 🔴 | 2026-12-14 |
-| [S3-016](sprints/sprint-3.md) | Graceful shutdown (SIGTERM/SIGINT closing DB pool) in API | 🟡 | 2026-12-14 |
 
 ---
 
@@ -152,6 +146,8 @@
 | S2-005 | Implement `backtest/metrics.ts` (Sharpe, Sortino, Calmar, DD) | 2026-11-26 |
 | S2-006 | Implement `backtest/reporter.ts` (equity curve, daily returns, report) | 2026-11-26 |
 | S2-008 | Write `backtest.test.ts` (5 multi-day, P&L, 15:00 square-off cases) | 2026-11-26 |
+| S3-001..004 | Implement `auth`, `rate-limit`, `audit`, `risk` middleware | 2026-11-26 |
+| S3-015..016 | Add correlation IDs, global error handler, DB `/health` ping & graceful shutdown | 2026-11-26 |
 
 ---
 
