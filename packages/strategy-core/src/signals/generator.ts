@@ -15,7 +15,7 @@ import {
   RunType,
   CrossoverDirection,
 } from '../types';
-import { calculateEMAsForCandles } from '../indicators/ema';
+import { calculateEMAsForCandles, initializeEMAs } from '../indicators/ema';
 import {
   detectCrossover,
   isInEntryWindow,
@@ -346,6 +346,7 @@ export class StreamingSignalGenerator {
   private currentEMA21: number = NaN;
   private prevEMA9: number = NaN;
   private prevEMA21: number = NaN;
+  private seedBuffer: number[] = [];
 
   constructor(config: StrategyConfig, instruments: Instrument[], runType: RunType = 'live') {
     this.config = config;
@@ -509,10 +510,16 @@ export class StreamingSignalGenerator {
     const mult21 = 2 / 22;
 
     if (isNaN(this.currentEMA9)) {
-      // First values - need to seed
-      // In practice, this would be initialized from historical data
-      // For streaming, we'd pass in pre-seeded EMAs
-      return { ema9: NaN, ema21: NaN, warmupComplete: false };
+      this.seedBuffer.push(close);
+      if (this.seedBuffer.length < 21) {
+        return { ema9: NaN, ema21: NaN, warmupComplete: false };
+      }
+      const { ema9, ema21 } = initializeEMAs(this.seedBuffer);
+      this.prevEMA9 = ema9;
+      this.prevEMA21 = ema21;
+      this.currentEMA9 = ema9;
+      this.currentEMA21 = ema21;
+      return { ema9, ema21, warmupComplete: true };
     }
 
     this.prevEMA9 = this.currentEMA9;
@@ -610,5 +617,6 @@ export class StreamingSignalGenerator {
     this.currentEMA21 = NaN;
     this.prevEMA9 = NaN;
     this.prevEMA21 = NaN;
+    this.seedBuffer = [];
   }
 }

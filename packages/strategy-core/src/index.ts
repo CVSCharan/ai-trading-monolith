@@ -19,3 +19,5 @@ export * from './execution/cost-calculator';
 
 // Backtest
 export * from './backtest/engine';
+export * from './backtest/metrics';
+export * from './backtest/reporter';

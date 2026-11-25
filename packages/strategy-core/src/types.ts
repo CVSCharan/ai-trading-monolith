@@ -17,6 +17,11 @@ export type {
   CostConfig,
   StrategyConfig,
   Signal,
+  BacktestConfig,
+  BacktestResult,
+  BacktestTrade,
+  DailyReturn,
+  EquityPoint,
 } from '@groww-trading/shared';
 
 export type CrossoverDirection = 'BULLISH' | 'BEARISH' | 'NONE';
