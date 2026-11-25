@@ -27,11 +27,9 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S2-002](sprints/sprint-2.md#S2-002) | Write generator.test.ts (7 test cases) | 🔴 | 2026-12-01 |
 | [S2-004](sprints/sprint-2.md#S2-004) | Implement backtest/engine.ts | 🔴 | 2026-12-03 |
 | [S2-005](sprints/sprint-2.md#S2-005) | Implement backtest/metrics.ts (Sharpe, Sortino, DD) | 🟡 | 2026-12-04 |
 | [S2-006](sprints/sprint-2.md#S2-006) | Implement backtest/reporter.ts | 🟡 | 2026-12-04 |
-| [S2-007](sprints/sprint-2.md#S2-007) | Add buildInstrumentIndex() to instrument-resolver | 🟡 | 2026-12-05 |
 | [S2-008](sprints/sprint-2.md#S2-008) | Write backtest.test.ts (6 test cases) | 🔴 | 2026-12-05 |
 | [S2-009](sprints/sprint-2.md#S2-009) | Verify ≥90% coverage gate | 🔴 | 2026-12-06 |
 
@@ -152,6 +150,8 @@
 | S0-001 | Pushed commits to GitHub (`origin/main`) | 2026-11-26 |
 | S2-001 | Write `crossover.test.ts` (6 test cases, 98.15% line cov) | 2026-11-26 |
 | S2-003 | Write `instrument-resolver.test.ts` (6 test cases) | 2026-11-26 |
+| S2-002 | Complete `generator.test.ts` (8 cases, 98.21% line cov) | 2026-11-26 |
+| S2-007 | Add `buildInstrumentIndex()` O(1) lookup to `instrument-resolver` | 2026-11-26 |
 
 ---
 

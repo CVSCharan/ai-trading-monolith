@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { selectStrike } from '../src/execution/instrument-resolver';
+import { buildInstrumentIndex, selectStrike } from '../src/execution/instrument-resolver';
 import { createInstruments, createUTCForIST } from './test-utils';
 import type { Instrument } from '../src/types';
 
@@ -70,5 +70,13 @@ describe('Instrument Resolver (S2-003)', () => {
     expect(() =>
       selectStrike(25000, 'BUY', 'ATM_BUY', 5, createInstruments(), signalTime)
     ).toThrow();
+  });
+
+  test('S2-007: buildInstrumentIndex enables O(1) strike lookup with identical result', () => {
+    const instruments = createInstruments();
+    const index = buildInstrumentIndex(instruments);
+    const indexed = selectStrike(24010, 'BUY', 'DEEP_ITM_BUY', 5, instruments, signalTime, 'WEEKLY', 2, index);
+    expect(indexed.optionSymbol).toBe('NIFTY24JAN23750CE');
+    expect(indexed.strike).toBe(23750);
   });
 });

@@ -20,6 +20,26 @@ import { getISTDateString } from '@groww-trading/shared';
  *   BUY  → Short Put (PE) at ATM
  *   SELL → Short Call (CE) at ATM
  */
+export type InstrumentIndex = Map<string, Instrument[]>;
+
+/**
+ * Pre-index active OPT instruments by `underlying:strike:optionType` for O(1) backtest lookups.
+ */
+export function buildInstrumentIndex(instruments: Instrument[]): InstrumentIndex {
+  const index: InstrumentIndex = new Map();
+  for (const inst of instruments) {
+    if (inst.instrumentType !== 'OPT') continue;
+    const key = `${inst.underlyingSymbol}:${inst.strikePrice}:${inst.optionType}`;
+    const bucket = index.get(key);
+    if (bucket) {
+      bucket.push(inst);
+    } else {
+      index.set(key, [inst]);
+    }
+  }
+  return index;
+}
+
 export function selectStrike(
   spotPrice: number,
   signalType: SignalType,
@@ -28,7 +48,8 @@ export function selectStrike(
   instruments: Instrument[],
   signalTime: Date,  // Use signal time for expiry resolution
   expiryPreference: 'WEEKLY' | 'MONTHLY' = 'WEEKLY',
-  avoidExpiryDays: number = 2
+  avoidExpiryDays: number = 2,
+  instrumentIndex?: InstrumentIndex
 ): { strike: number; optionType: OptionType; optionSymbol: string; expiryDate: Date } {
   // Find index instrument for strike step
   const indexInst = instruments.find(i =>
@@ -80,7 +101,8 @@ export function selectStrike(
     optionType,
     expiryPreference,
     avoidExpiryDays,
-    signalTime
+    signalTime,
+    instrumentIndex
   );
 
   if (!optionInst) {
@@ -110,12 +132,15 @@ function findOptionInstrument(
   optionType: OptionType,
   expiryPreference: 'WEEKLY' | 'MONTHLY',
   avoidExpiryDays: number,
-  signalTime: Date
+  signalTime: Date,
+  instrumentIndex?: InstrumentIndex
 ): Instrument | undefined {
-  const signalDate = getISTDateString(signalTime);
-  const signalTimeOnly = signalTime; // Keep full date for comparison
+  const signalTimeOnly = signalTime;
+  const pool = instrumentIndex
+    ? (instrumentIndex.get(`${underlying}:${strike}:${optionType}`) ?? [])
+    : instruments;
 
-  const candidates = instruments.filter(i =>
+  const candidates = pool.filter(i =>
     i.underlyingSymbol === underlying &&
     i.instrumentType === 'OPT' &&
     i.strikePrice === strike &&
