@@ -73,12 +73,21 @@ Add Recharts area chart for the backtest equity curve, drawdown series, and pagi
 
 Replace placeholder `/live-trading` route with `LiveTradingPage.tsx`: live 6-gate prerequisite status table (≥100 paper trades, PF > 1.5, Max DD < 10%, 2FA, admin approval, Groww token), enable/disable toggle, and prominent Emergency Stop confirmation dialog.
 
-### S7-007 — Browser Visual Inspection & Responsive Audit (DevTools) {#S7-007}
+### S7-007 — SettingsPage (`.env` Groww Status, Token Refresh & Risk Guardrails) {#S7-007}
 | **ETA** | 2027-01-15 | **Priority** | 🔴 Critical |
+|---------|------------|--------------|-------------|
+
+Align `SettingsPage.tsx` + `/api/groww/status` with the `.env`-configured operator workflow:
+- Detect and display whether Groww API Key / TOTP Secret are loaded from `.env` or DB-encrypted credentials (masked, never exposing secrets).
+- Show current Groww access token validity/expiry with a 1-click **Test / Refresh Access Token** button (keep manual TOTP/QR override in a collapsible secondary section).
+- Add **Risk & Execution Guardrails** summary (Paper Capital, Max Daily Loss `1.5%`, Max Lots, `15:00 IST` Unconditional Square-Off, Live Trading Gate status).
+
+### S7-008 — Browser Visual Inspection & Responsive Audit (DevTools) {#S7-008}
+| **ETA** | 2027-01-16 | **Priority** | 🔴 Critical |
 |---------|------------|--------------|-------------|
 
 Start `apps/api` and `apps/web`, inspect every route in a real browser via Chrome DevTools (`1440×900` and `1024×768`), verify charts/tables/forms render cleanly with zero console errors, and update `S5-015` + Sprint 7 checklist.
 
 ---
 
-*Sprint 7 · Target: 2027-01-16 · 7 tickets*
+*Sprint 7 · Target: 2027-01-16 · 8 tickets*
