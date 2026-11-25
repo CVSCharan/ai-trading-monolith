@@ -495,7 +495,7 @@ export class StreamingSignalGenerator {
     return signals;
   }
 
-  private updateEMAs(close: number): { ema9: number | NaN; ema21: number | NaN; warmupComplete: boolean } {
+  private updateEMAs(close: number) {
     const mult9 = 2 / 10;
     const mult21 = 2 / 22;
 
