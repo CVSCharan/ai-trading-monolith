@@ -10,13 +10,14 @@
 
 ## Goal
 
-Upgrade the minimal Sprint 5 scaffold into a **classic, professional, modern institutional trading UI** built on **shadcn/ui** (`clsx`, `tailwind-merge`, `class-variance-authority`, Radix UI primitives) + **Tailwind CSS** + **Recharts** + **Lightweight Charts**, making overall trading performance, active positions, signals, and risk immediately scannable, with full Chrome DevTools browser verification.
+Upgrade the minimal Sprint 5 scaffold into **AI Trader** — a **classic, professional, modern Groww-inspired institutional trading UI** built on **shadcn/ui** (`clsx`, `tailwind-merge`, `class-variance-authority`, Radix UI primitives) + **Tailwind CSS** + **Recharts** + **Lightweight Charts**, making overall trading performance, active positions, signals, and risk immediately scannable, with full Chrome DevTools browser verification.
 
-## Design Direction
+## Brand & Design Direction
 
-- **Aesthetic**: Classic modern pro trading desk (inspired by Linear / Bloomberg-lite / TradingView dark slate): crisp `1px` borders, subtle card elevation, high-contrast typography, `font-mono tabular-nums` for every price, strike, quantity, and P&L figure.
+- **App Name**: **AI Trader** (Groww 9/21 EMA Options Terminal) with custom SVG logo (`public/logo.svg`), favicon (`public/favicon.svg`), PWA manifest (`manifest.webmanifest`), and SEO/OpenGraph metadata.
+- **Aesthetic**: Groww-level clarity meets institutional dark trading desk (Linear / TradingView dark slate): crisp `1px` borders, subtle card elevation, high-contrast typography, `font-mono tabular-nums` for every price, strike, quantity, and P&L figure.
 - **Component System**: `shadcn/ui`-style accessible primitives in `apps/web/src/components/ui/` (`Button`, `Card`, `Badge`, `Table`, `Tabs`, `Dialog`, `Select`, `Tooltip`, `Separator`).
-- **Overall Trading Clarity**: At-a-glance KPI strip (Net Equity, Day P&L, Win Rate / Profit Factor, Active Mode & Engine Health), clear Emerald (`#10b981`) vs Rose (`#f43f5e`) P&L semantics, and 1-click drill-down from any trade row into the Trade Auditor candlestick + option context view.
+- **Overall Trading Clarity**: At-a-glance KPI strip (Available Margin / Paper Capital, Day P&L, Win Rate / Profit Factor, Active Mode & Engine Health), clear Emerald (`#10b981`) vs Rose (`#f43f5e`) P&L semantics, and 1-click drill-down from any trade row into the Trade Auditor candlestick + option context view.
 
 ---
 

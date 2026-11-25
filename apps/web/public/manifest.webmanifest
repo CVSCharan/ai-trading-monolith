@@ -1,0 +1,21 @@
+{
+  "name": "AI Trader — Groww Options Platform",
+  "short_name": "AI Trader",
+  "description": "Automated 9/21 EMA Crossover NIFTY/BANKNIFTY Options Trading Terminal integrated with Groww",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml"
+    }
+  ]
+}
