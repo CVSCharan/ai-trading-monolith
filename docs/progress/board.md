@@ -79,6 +79,18 @@
 
 ---
 
+## 📋 TODO — Sprint 8 (Jan 17–21 · Groww Pro Features)
+
+| Ticket | Title | Priority | ETA |
+|--------|-------|----------|-----|
+| [S8-001](sprints/sprint-8.md#S8-001) | Custom Watchlist (DB + Groww Instruments & Live LTP/WS) | 🟡 | 2027-01-17 |
+| [S8-002](sprints/sprint-8.md#S8-002) | Live Margin & Funds Check (`/v1/margins/detail/user`) | 🔴 | 2027-01-18 |
+| [S8-003](sprints/sprint-8.md#S8-003) | Broker-Side Smart Orders: OCO & GTT (`/v1/order-advance/create`) | 🔴 | 2027-01-19 |
+| [S8-004](sprints/sprint-8.md#S8-004) | Historical Candle Backfill (`/v1/historical/candle/range`) | 🟡 | 2027-01-20 |
+| [S8-005](sprints/sprint-8.md#S8-005) | Live Positions & Holdings Sync (`/v1/positions/user`) | 🟡 | 2027-01-21 |
+
+---
+
 ## ✅ DONE
 
 | Ticket | Title | Completed |
