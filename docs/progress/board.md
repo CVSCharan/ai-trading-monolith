@@ -9,7 +9,6 @@
 
 | Ticket | Title | Sprint | Owner | ETA |
 |--------|-------|--------|-------|-----|
-| [S0-001](sprints/sprint-immediate.md#S0-001) | Push 6 commits to GitHub | Immediate | @dev | 2026-11-26 |
 | [S0-002](sprints/sprint-immediate.md#S0-002) | Enable GitHub Actions CI | Immediate | @dev | 2026-11-26 |
 | [S0-003](sprints/sprint-immediate.md#S0-003) | Verify UTC+EDT matrix passes | Immediate | @dev | 2026-11-26 |
 | [S0-004](sprints/sprint-immediate.md#S0-004) | Set branch protection (CI required) | Immediate | @dev | 2026-11-26 |
@@ -28,9 +27,7 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S2-001](sprints/sprint-2.md#S2-001) | Write crossover.test.ts (5 test cases) | 🔴 | 2026-12-01 |
 | [S2-002](sprints/sprint-2.md#S2-002) | Write generator.test.ts (7 test cases) | 🔴 | 2026-12-01 |
-| [S2-003](sprints/sprint-2.md#S2-003) | Write instrument-resolver.test.ts (6 test cases) | 🔴 | 2026-12-02 |
 | [S2-004](sprints/sprint-2.md#S2-004) | Implement backtest/engine.ts | 🔴 | 2026-12-03 |
 | [S2-005](sprints/sprint-2.md#S2-005) | Implement backtest/metrics.ts (Sharpe, Sortino, DD) | 🟡 | 2026-12-04 |
 | [S2-006](sprints/sprint-2.md#S2-006) | Implement backtest/reporter.ts | 🟡 | 2026-12-04 |
@@ -152,6 +149,9 @@
 | S1-006 | Create all 9 API route stubs + wire into index.ts | 2026-11-26 |
 | S1-009 | Add regression test: entry fires after exit | 2026-11-26 |
 | S1-010 | Add regression test: exit signal carries optionSymbol | 2026-11-26 |
+| S0-001 | Pushed commits to GitHub (`origin/main`) | 2026-11-26 |
+| S2-001 | Write `crossover.test.ts` (6 test cases, 98.15% line cov) | 2026-11-26 |
+| S2-003 | Write `instrument-resolver.test.ts` (6 test cases) | 2026-11-26 |
 
 ---
 
