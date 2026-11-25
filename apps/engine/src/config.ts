@@ -7,6 +7,7 @@ import { z } from 'zod';
 const EnvSchema = z.object({
   // Database
   DATABASE_URL: z.string().url(),
+  DATABASE_POOL_SIZE: z.coerce.number().default(10),
 
   // JWT for internal auth
   JWT_SECRET: z.string().min(32),
@@ -16,7 +17,7 @@ const EnvSchema = z.object({
 
   // Engine
   HOST_ID: z.string().default('engine-1'),
-  PORT: z.coerce.number().default(3001),
+  ENGINE_PORT: z.coerce.number().default(3001),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
 
   // Market hours
@@ -45,12 +46,13 @@ const env = EnvSchema.parse(process.env);
 
 export const config = {
   databaseUrl: env.DATABASE_URL,
+  dbPoolSize: env.DATABASE_POOL_SIZE,
   jwtSecret: env.JWT_SECRET,
   groww: {
     apiBaseUrl: env.GROWW_API_BASE_URL,
   },
   hostId: env.HOST_ID,
-  port: env.PORT,
+  port: env.ENGINE_PORT,
   logLevel: env.LOG_LEVEL,
   marketOpen: env.MARKET_OPEN,
   marketClose: env.MARKET_CLOSE,

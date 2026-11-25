@@ -5,7 +5,7 @@
 import pino from 'pino';
 import { db } from '../index';
 import { engineCommands, engineState, reconciliationState } from '../db/command-state';
-import { paperPortfolios, paperPositions, paperTrades } from '../../api/src/db/schema';
+import { paperPortfolios, paperPositions, paperTrades } from '../../../api/src/db/schema';
 import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import { GrowwClient } from './groww-client';
 import { StreamingSignalGenerator } from '@groww-trading/strategy-core';

@@ -337,11 +337,15 @@ export class StreamingSignalGenerator {
   private instruments: Instrument[];
   private runType: RunType;
   private currentPosition: TradeSide | null = null;
+  private openTradeSymbol: string = '';
+  private openTradeStrike: number = 0;
+  private openTradeOptionType: OptionType = 'CE';
+  private openTradeExpiryDate: Date = new Date(0);
   private lastProcessedBarTime: Date | null = null;
-  private currentEMA9: number | NaN = NaN;
-  private currentEMA21: number | NaN = NaN;
-  private prevEMA9: number | NaN = NaN;
-  private prevEMA21: number | NaN = NaN;
+  private currentEMA9: number = NaN;
+  private currentEMA21: number = NaN;
+  private prevEMA9: number = NaN;
+  private prevEMA21: number = NaN;
 
   constructor(config: StrategyConfig, instruments: Instrument[], runType: RunType = 'live') {
     this.config = config;
@@ -378,14 +382,15 @@ export class StreamingSignalGenerator {
     if (this.currentPosition !== null) {
       // 15:00 square-off
       if (shouldSquareOff(barCloseTime, this.config.exitTime)) {
-        signals.push(this.createExitSignal(barCloseTime, 'SQUARE_OFF_1500'));
+        signals.push(this.createExitSignal(barCloseTime, 'SQUARE_OFF_1500', spotPrice));
         this.currentPosition = null;
+        this.clearOpenTrade();
         return signals;
       }
 
       // Opposite crossover
       if (shouldExitOnCrossover(this.currentPosition, crossover)) {
-        signals.push(this.createExitSignal(barCloseTime, 'OPPOSITE_CROSSOVER'));
+        signals.push(this.createExitSignal(barCloseTime, 'OPPOSITE_CROSSOVER', spotPrice));
 
         // Check reversal
         if (crossover !== 'NONE') {
@@ -433,14 +438,17 @@ export class StreamingSignalGenerator {
               });
 
               this.currentPosition = newPosition;
+              this.setOpenTrade(strike, optionType, optionSymbol, expiryDate);
               return signals;
             }
           }
         }
 
         this.currentPosition = null;
+        this.clearOpenTrade();
         return signals;
       }
+    }
 
     // Check NEW ENTRY
     if (this.currentPosition === null && crossover !== 'NONE') {
@@ -490,6 +498,7 @@ export class StreamingSignalGenerator {
       });
 
       this.currentPosition = newPosition;
+      this.setOpenTrade(strike, optionType, optionSymbol, expiryDate);
     }
 
     return signals;
@@ -531,7 +540,30 @@ export class StreamingSignalGenerator {
     return 'NONE';
   }
 
-  private createExitSignal(barCloseTime: Date, exitReason: 'SQUARE_OFF_1500' | 'OPPOSITE_CROSSOVER'): Signal {
+  private setOpenTrade(
+    strike: number,
+    optionType: OptionType,
+    optionSymbol: string,
+    expiryDate: Date
+  ): void {
+    this.openTradeStrike = strike;
+    this.openTradeOptionType = optionType;
+    this.openTradeSymbol = optionSymbol;
+    this.openTradeExpiryDate = expiryDate;
+  }
+
+  private clearOpenTrade(): void {
+    this.openTradeSymbol = '';
+    this.openTradeStrike = 0;
+    this.openTradeOptionType = 'CE';
+    this.openTradeExpiryDate = new Date(0);
+  }
+
+  private createExitSignal(
+    barCloseTime: Date,
+    exitReason: 'SQUARE_OFF_1500' | 'OPPOSITE_CROSSOVER',
+    spotPrice: number = 0
+  ): Signal {
     return {
       strategyId: this.config.id!,
       runType: this.runType,
@@ -539,11 +571,11 @@ export class StreamingSignalGenerator {
       signalType: this.currentPosition === 'LONG' ? 'SELL' : 'BUY',
       ema9: this.currentEMA9,
       ema21: this.currentEMA21,
-      spotPrice: 0,  // Would be passed in
-      selectedStrike: 0,
-      optionType: 'CE',
-      optionSymbol: '',
-      expiryDate: new Date(),
+      spotPrice,
+      selectedStrike: this.openTradeStrike,
+      optionType: this.openTradeOptionType,
+      optionSymbol: this.openTradeSymbol,
+      expiryDate: this.openTradeExpiryDate,
       entryWindowValid: true,
       isReversal: false,
       currentPosition: this.currentPosition!,
@@ -566,12 +598,13 @@ export class StreamingSignalGenerator {
     return this.currentPosition;
   }
 
-  getEMAState(): { ema9: number | NaN; ema21: number | NaN } {
+  getEMAState(): { ema9: number; ema21: number } {
     return { ema9: this.currentEMA9, ema21: this.currentEMA21 };
   }
 
   reset(): void {
     this.currentPosition = null;
+    this.clearOpenTrade();
     this.lastProcessedBarTime = null;
     this.currentEMA9 = NaN;
     this.currentEMA21 = NaN;

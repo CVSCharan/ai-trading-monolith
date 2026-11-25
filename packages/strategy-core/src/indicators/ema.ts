@@ -10,13 +10,13 @@
  * Continuity: EMAs run continuously across sessions (no daily reset)
  */
 
-export function calculateEMA(prices: number[], period: number): (number | NaN)[] {
+export function calculateEMA(prices: number[], period: number): (number)[] {
   if (prices.length < period) {
     return prices.map(() => NaN);
   }
 
   const multiplier = 2 / (period + 1);
-  const ema: (number | NaN)[] = new Array(prices.length).fill(NaN);
+  const ema: (number)[] = new Array(prices.length).fill(NaN);
 
   // Seed with SMA of first `period` values
   let sum = 0;
@@ -39,7 +39,7 @@ export function updateEMA(prevEMA: number, currentPrice: number, period: number)
   return (currentPrice - prevEMA) * multiplier + prevEMA;
 }
 
-export function initializeEMAs(closes: number[]): { ema9: number | NaN; ema21: number | NaN; warmupComplete: boolean } {
+export function initializeEMAs(closes: number[]): { ema9: number; ema21: number; warmupComplete: boolean } {
   const ema9 = calculateEMA(closes, 9);
   const ema21 = calculateEMA(closes, 21);
 
@@ -51,19 +51,19 @@ export function initializeEMAs(closes: number[]): { ema9: number | NaN; ema21: n
   };
 }
 
-export function calculateEMAsForCandles(candles: { close: number }[]): { ema9: (number | NaN)[]; ema21: (number | NaN)[] } {
+export function calculateEMAsForCandles(candles: { close: number }[]): { ema9: (number)[]; ema21: (number)[] } {
   const closes = candles.map(c => c.close);
   return calculateEMA9and21(closes);
 }
 
 // Also export calculateEMA9and21 for the test
-export function calculateEMA9and21(closes: number[]): { ema9: (number | NaN)[]; ema21: (number | NaN)[] } {
+export function calculateEMA9and21(closes: number[]): { ema9: (number)[]; ema21: (number)[] } {
   if (closes.length < 21) {
     return { ema9: closes.map(() => NaN), ema21: closes.map(() => NaN) };
   }
 
-  const ema9: (number | NaN)[] = new Array(closes.length).fill(NaN);
-  const ema21: (number | NaN)[] = new Array(closes.length).fill(NaN);
+  const ema9: (number)[] = new Array(closes.length).fill(NaN);
+  const ema21: (number)[] = new Array(closes.length).fill(NaN);
 
   const mult9 = 2 / 10;
   const mult21 = 2 / 22;
@@ -88,14 +88,14 @@ export function calculateEMA9and21(closes: number[]): { ema9: (number | NaN)[]; 
 }
 
 export class StreamingEMA {
-  private ema9: number | NaN = NaN;
-  private ema21: number | NaN = NaN;
+  private ema9: number = NaN;
+  private ema21: number = NaN;
   private readonly mult9 = 2 / 10;
   private readonly mult21 = 2 / 22;
   private readonly seedBuffer: number[] = [];
   private seeded = false;
 
-  addClose(close: number): { ema9: number | NaN; ema21: number | NaN; warmupComplete: boolean } {
+  addClose(close: number): { ema9: number; ema21: number; warmupComplete: boolean } {
     if (!this.seeded) {
       this.seedBuffer.push(close);
       if (this.seedBuffer.length >= 21) {
@@ -116,7 +116,7 @@ export class StreamingEMA {
     return { ema9: this.ema9, ema21: this.ema21, warmupComplete: this.seeded };
   }
 
-  getState(): { ema9: number | NaN; ema21: number | NaN; warmupComplete: boolean } {
+  getState(): { ema9: number; ema21: number; warmupComplete: boolean } {
     return { ema9: this.ema9, ema21: this.ema21, warmupComplete: this.seeded };
   }
 

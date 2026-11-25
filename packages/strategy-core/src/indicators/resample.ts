@@ -4,10 +4,6 @@
 
 import { Candle1m, CandleResampled, Timeframe } from '../types';
 import {
-  getAlignedBarTimeIST,
-  getBarCloseTimeIST,
-  isMarketHoursBar,
-  timeframeToMinutes,
   toIST,
   createISTDate,
   getMinutesIST,
@@ -15,7 +11,7 @@ import {
 } from '@groww-trading/shared';
 
 export function timeframeToMinutes(tf: Timeframe): number {
-  return { '5m': 5, '15m': 15, '30m': 30 }[tf];
+  return { '1m': 1, '5m': 5, '15m': 15, '30m': 30 }[tf];
 }
 
 export function getAlignedBarTimeIST(timestamp: Date, timeframeMinutes: number): Date {

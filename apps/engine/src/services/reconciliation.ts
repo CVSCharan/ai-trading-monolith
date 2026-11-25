@@ -4,7 +4,7 @@
 
 import pino from 'pino';
 import { db } from '../index';
-import { reconciliationState, liveFills, livePositions, paperPortfolios, paperPositions, paperTrades } from '../../api/src/db/schema';
+import { reconciliationState, liveFills, livePositions, paperPortfolios, paperPositions, paperTrades, auditLogs } from '../../../api/src/db/schema';
 import { eq, and, isNull, desc, gte, lte } from 'drizzle-orm';
 import { GrowwClient } from './groww-client';
 import { config } from '../config';
@@ -144,35 +144,60 @@ export class ReconciliationService {
     this.logger.warn({ userId, runType, discrepancy }, 'Resolving discrepancy');
 
     switch (discrepancy.action) {
-      case 'VERIFY_AND_CLOSE':
-        // Check if position was actually closed
-        // For now, mark as closed in DB
+      case 'VERIFY_AND_CLOSE': {
         if (runType === 'live') {
-          await this.db
-            .update(livePositions)
-            .set({ closedAt: new Date(), realizedPnl: 0 })
+          const [openPos] = await this.db
+            .select()
+            .from(livePositions)
             .where(and(
               eq(livePositions.userId, userId),
               eq(livePositions.optionSymbol, discrepancy.symbol),
               isNull(livePositions.closedAt)
-            ));
+            ))
+            .limit(1);
+
+          if (openPos) {
+            const pnl = this.computePnL(openPos);
+            await this.db
+              .update(livePositions)
+              .set({ closedAt: new Date(), realizedPnl: pnl, closedReason: 'reconciliation' })
+              .where(eq(livePositions.id, openPos.id));
+
+            await this.db.insert(auditLogs).values({
+              userId,
+              action: 'RECONCILIATION_CLOSE',
+              entityType: 'live_position',
+              entityId: openPos.id,
+              details: { symbol: discrepancy.symbol, realizedPnl: pnl, reason: 'missing_in_groww' },
+            });
+          }
         } else {
           const [portfolio] = await this.db
             .select()
             .from(paperPortfolios)
             .where(eq(paperPortfolios.userId, userId));
           if (portfolio) {
-            await this.db
-              .update(paperPositions)
-              .set({ closedAt: new Date(), realizedPnl: 0 })
+            const [openPos] = await this.db
+              .select()
+              .from(paperPositions)
               .where(and(
                 eq(paperPositions.portfolioId, portfolio.id),
                 eq(paperPositions.optionSymbol, discrepancy.symbol),
                 isNull(paperPositions.closedAt)
-              ));
+              ))
+              .limit(1);
+
+            if (openPos) {
+              const pnl = this.computePnL(openPos);
+              await this.db
+                .update(paperPositions)
+                .set({ closedAt: new Date(), realizedPnl: pnl, closedReason: 'reconciliation' })
+                .where(eq(paperPositions.id, openPos.id));
+            }
           }
         }
         break;
+      }
 
       case 'RECONCILE_QUANTITY':
         // Update DB to match Groww
@@ -219,5 +244,17 @@ export class ReconciliationService {
         target: [reconciliationState.userId, reconciliationState.runType],
         set: data,
       });
+  }
+
+  private computePnL(position: {
+    side: string;
+    quantity: number;
+    avgEntryPrice: string | number;
+    currentPrice?: string | number | null;
+  }): string {
+    const entry = Number(position.avgEntryPrice);
+    const exit = position.currentPrice != null ? Number(position.currentPrice) : entry;
+    const direction = position.side === 'LONG' ? 1 : -1;
+    return ((exit - entry) * position.quantity * direction).toFixed(2);
   }
 }

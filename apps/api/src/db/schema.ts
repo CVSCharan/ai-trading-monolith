@@ -19,8 +19,9 @@ import {
   uniqueIndex,
   primaryKey,
   pgEnum,
-  sql,
+  time,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // ============================================
 // Enums
@@ -105,9 +106,9 @@ export const userProfiles = pgTable('user_profiles', {
 export const growwCredentials = pgTable('groww_credentials', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: varchar('user_id', { length: 255 }).notNull().unique().references(() => user.id, { onDelete: 'cascade' }),
-  apiKeyEncrypted: text('api_key_encrypted').notNull(),
-  apiSecretEncrypted: text('api_secret_encrypted').notNull(),
-  totpSecretEncrypted: text('totp_secret_encrypted').notNull(),
+  apiKeyEncrypted: text('api_key_encrypted').notNull(), // Holds TOTP Token (or API Key)
+  apiSecretEncrypted: text('api_secret_encrypted'),     // Optional: null in Groww TOTP flow
+  totpSecretEncrypted: text('totp_secret_encrypted').notNull(), // Base32 secret from QR
   accessTokenEncrypted: text('access_token_encrypted'),
   refreshTokenEncrypted: text('refresh_token_encrypted'),
   tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
@@ -144,7 +145,7 @@ export const instruments = pgTable('instruments', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   lookupIdx: index('instruments_lookup_idx').on(table.symbol, table.instrumentType, table.isActive, table.validFrom, table.validTo),
-  growwTokenIdx: index('instruments_groww_token_idx').on(table.growwToken),
+  growwTokenUid: uniqueIndex('instruments_groww_token_uidx').on(table.growwToken),
   // Unique constraint for non-NULL fields
   // For index rows: strike_price, option_type, expiry_date are NULL
   // Use partial indexes for better uniqueness
@@ -345,6 +346,7 @@ export const paperPositions = pgTable('paper_positions', {
   realizedPnl: decimal('realized_pnl', { precision: 12, scale: 2 }).default('0'),
   openedAt: timestamp('opened_at', { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp('closed_at', { withTimezone: true }),
+  closedReason: varchar('closed_reason', { length: 50 }),
 }, (table) => ({
   portfolioSymbolIdx: uniqueIndex('paper_positions_unique_open').on(table.portfolioId, table.optionSymbol).where(sql`closed_at IS NULL`),
 }));
@@ -412,6 +414,7 @@ export const livePositions = pgTable('live_positions', {
   realizedPnl: decimal('realized_pnl', { precision: 12, scale: 2 }).default('0'),
   openedAt: timestamp('opened_at', { withTimezone: true }).defaultNow().notNull(),
   closedAt: timestamp('closed_at', { withTimezone: true }),
+  closedReason: varchar('closed_reason', { length: 50 }),
 }, (table) => ({
   userSymbolIdx: uniqueIndex('live_positions_unique_open').on(table.userId, table.optionSymbol).where(sql`closed_at IS NULL`),
 }));
@@ -453,7 +456,9 @@ export const costConfigs = pgTable('cost_configs', {
   defaultSpreadPct: decimal('default_spread_pct', { precision: 6, scale: 4 }),
   slippageSpreadFraction: decimal('slippage_spread_fraction', { precision: 4, scale: 2 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  effectiveFromUid: uniqueIndex('cost_configs_effective_from_uidx').on(table.effectiveFrom),
+}));
 
 // ============================================
 // Market Data Cache
@@ -602,4 +607,5 @@ export type ReconciliationState = typeof reconciliationState.$inferSelect;
 export type NewReconciliationState = typeof reconciliationState.$inferInsert;
 
 // Import user table from Better Auth (it creates its own)
-import { user } from './better-auth-schema';
+import { user, session, account, verification, passkey } from './better-auth-schema';
+export { user, session, account, verification, passkey };

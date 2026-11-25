@@ -3,7 +3,7 @@
 // This is for TypeScript types only - Better Auth manages its own tables
 // ============================================
 
-import { pgTable, uuid, varchar, text, timestamp, boolean, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer, index } from 'drizzle-orm/pg-core';
 
 // Better Auth creates these tables automatically
 // We reference them for foreign keys and type inference

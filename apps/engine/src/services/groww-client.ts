@@ -1,20 +1,21 @@
 // ============================================
 // Groww API Client (Engine-side - holds credentials)
+// Supports Groww TOTP Flow (TOTP Token + Base32 QR Secret)
 // ============================================
 
 import pino from 'pino';
 import { config } from '../config';
 import { db } from '../index';
-import { growwCredentials } from '../../api/src/db/schema';
-import { eq } from 'drizzle-orm';
-import * as crypto from 'crypto';
-import CryptoJS from 'crypto-js';
+import { growwCredentials } from '../../../api/src/db/schema';
+import { encrypt, decrypt, getMasterKey } from '../../../api/src/utils/encryption';
+import { eq, sql } from 'drizzle-orm';
 import { authenticator } from 'otplib';
 
-interface GrowwTokens {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: Date;
+interface GrowwAuthResponse {
+  access_token?: string;
+  token?: string;
+  refresh_token?: string;
+  expires_in?: number;
 }
 
 export class GrowwClient {
@@ -23,14 +24,14 @@ export class GrowwClient {
   private refreshToken: string | null = null;
   private tokenExpiry: Date | null = null;
   private userId: string | null = null;
+  private totpToken: string | null = null;
+  private totpSecret: string | null = null;
 
-  constructor(private growwConfig: any, logger: pino.Logger) {
+  constructor(private growwConfig: { apiBaseUrl: string }, logger: pino.Logger) {
     this.logger = logger.child({ component: 'GrowwClient' });
   }
 
   async initialize(): Promise<void> {
-    // Load credentials for first active user
-    // In production, this would be per-user
     const creds = await db
       .select()
       .from(growwCredentials)
@@ -38,70 +39,73 @@ export class GrowwClient {
       .limit(1);
 
     if (creds.length === 0) {
+      // Fallback to .env for local single-user dev
+      const envToken = process.env['GROWW_TOTP_TOKEN'];
+      const envSecret = process.env['GROWW_TOTP_SECRET'];
+      if (envToken && envSecret && !envToken.startsWith('your-')) {
+        this.totpToken = envToken;
+        this.totpSecret = envSecret;
+        await this.login(envToken, envSecret);
+        return;
+      }
       throw new Error('No active Groww credentials found');
     }
 
-    const cred = creds[0];
+    const cred = creds[0]!;
     this.userId = cred.userId;
+    const masterKey = getMasterKey();
 
-    // Decrypt credentials
-    const masterKey = process.env.ENCRYPTION_MASTER_KEY;
-    if (!masterKey) {
-      throw new Error('ENCRYPTION_MASTER_KEY not set');
-    }
+    this.totpToken = decrypt(cred.apiKeyEncrypted, masterKey);
+    this.totpSecret = decrypt(cred.totpSecretEncrypted, masterKey);
 
-    const apiKey = this.decrypt(cred.apiKeyEncrypted, masterKey);
-    const apiSecret = this.decrypt(cred.apiSecretEncrypted, masterKey);
-    const totpSecret = this.decrypt(cred.totpSecretEncrypted, masterKey);
-
-    // Load existing tokens if valid
     if (cred.accessTokenEncrypted && cred.tokenExpiresAt && cred.tokenExpiresAt > new Date()) {
-      this.accessToken = this.decrypt(cred.accessTokenEncrypted, masterKey);
-      this.refreshToken = this.decrypt(cred.refreshTokenEncrypted!, masterKey);
+      this.accessToken = decrypt(cred.accessTokenEncrypted, masterKey);
+      this.refreshToken = cred.refreshTokenEncrypted
+        ? decrypt(cred.refreshTokenEncrypted, masterKey)
+        : null;
       this.tokenExpiry = cred.tokenExpiresAt;
-      this.logger.info('Loaded existing valid tokens');
+      this.logger.info('Loaded existing valid Groww tokens');
     } else {
-      // Fresh login with TOTP
-      await this.login(apiKey, apiSecret, totpSecret);
+      await this.login(this.totpToken, this.totpSecret);
     }
   }
 
-  private async login(apiKey: string, apiSecret: string, totpSecret: string): Promise<void> {
+  private async login(totpToken: string, totpSecret: string): Promise<void> {
     const totp = authenticator.generate(totpSecret);
 
-    // Groww login flow (adjust to actual API)
-    // This is a simplified version - real implementation needs Groww's specific endpoints
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/auth/login`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-        'X-API-Secret': apiSecret,
+        'Authorization': `Bearer ${totpToken}`,
       },
-      body: JSON.stringify({ totp }),
+      body: JSON.stringify({ key_type: 'totp', totp }),
     });
 
     if (!response.ok) {
-      throw new Error(`Groww login failed: ${response.statusText}`);
+      throw new Error(`Groww login failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
-    this.accessToken = data.access_token;
-    this.refreshToken = data.refresh_token;
-    this.tokenExpiry = new Date(Date.now() + data.expires_in * 1000);
+    const data = (await response.json()) as GrowwAuthResponse;
+    this.accessToken = data.access_token ?? data.token ?? null;
+    this.refreshToken = data.refresh_token ?? null;
+    const expiresInSec = data.expires_in ?? 12 * 3600;
+    this.tokenExpiry = new Date(Date.now() + expiresInSec * 1000);
 
-    // Store encrypted tokens
     await this.storeTokens();
-
-    this.logger.info('Groww login successful');
+    this.logger.info('Groww TOTP login successful');
   }
 
   private async refreshAccessToken(): Promise<void> {
     if (!this.refreshToken) {
-      throw new Error('No refresh token available');
+      if (this.totpToken && this.totpSecret) {
+        await this.login(this.totpToken, this.totpSecret);
+        return;
+      }
+      throw new Error('No refresh token or TOTP credentials available');
     }
 
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/auth/refresh`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -110,29 +114,33 @@ export class GrowwClient {
     });
 
     if (!response.ok) {
-      // Re-login required
+      if (this.totpToken && this.totpSecret) {
+        await this.login(this.totpToken, this.totpSecret);
+        return;
+      }
       throw new Error('Token refresh failed, re-login needed');
     }
 
-    const data = await response.json();
-    this.accessToken = data.access_token;
-    this.refreshToken = data.refresh_token;
-    this.tokenExpiry = new Date(Date.now() + data.expires_in * 1000);
+    const data = (await response.json()) as GrowwAuthResponse;
+    this.accessToken = data.access_token ?? data.token ?? null;
+    this.refreshToken = data.refresh_token ?? this.refreshToken;
+    const expiresInSec = data.expires_in ?? 12 * 3600;
+    this.tokenExpiry = new Date(Date.now() + expiresInSec * 1000);
 
     await this.storeTokens();
     this.logger.info('Access token refreshed');
   }
 
   private async storeTokens(): Promise<void> {
-    if (!this.userId) return;
+    if (!this.userId || !this.accessToken) return;
 
-    const masterKey = process.env.ENCRYPTION_MASTER_KEY!;
+    const masterKey = getMasterKey();
 
     await db
       .update(growwCredentials)
       .set({
-        accessTokenEncrypted: this.encrypt(this.accessToken!, masterKey),
-        refreshTokenEncrypted: this.encrypt(this.refreshToken!, masterKey),
+        accessTokenEncrypted: encrypt(this.accessToken, masterKey),
+        refreshTokenEncrypted: this.refreshToken ? encrypt(this.refreshToken, masterKey) : null,
         tokenExpiresAt: this.tokenExpiry,
         lastRefreshAt: new Date(),
         refreshCountToday: sql`${growwCredentials.refreshCountToday} + 1`,
@@ -147,36 +155,36 @@ export class GrowwClient {
     return this.accessToken!;
   }
 
-  async getProfile(): Promise<any> {
+  async getProfile(): Promise<unknown> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/user/profile`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/profile`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
     return response.json();
   }
 
-  async getFunds(): Promise<any> {
+  async getFunds(): Promise<unknown> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/user/funds`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/funds`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
     return response.json();
   }
 
-  async getHoldings(): Promise<any> {
+  async getHoldings(): Promise<unknown> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/user/holdings`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/holdings`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
     return response.json();
   }
 
-  async getPositions(): Promise<any> {
+  async getPositions(): Promise<{ data?: Array<Record<string, any>> }> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/user/positions`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/positions`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
-    return response.json();
+    return response.json() as Promise<{ data?: Array<Record<string, any>> }>;
   }
 
   async placeOrder(order: {
@@ -189,11 +197,11 @@ export class GrowwClient {
     triggerPrice?: number;
     product: 'CNC' | 'MIS' | 'NRML';
     validity: 'DAY' | 'IOC';
-  }): Promise<any> {
+  }): Promise<unknown> {
     const token = await this.getAccessToken();
     const idempotencyKey = crypto.randomUUID();
 
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/orders`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -206,51 +214,46 @@ export class GrowwClient {
     return response.json();
   }
 
-  async cancelOrder(orderId: string): Promise<any> {
+  async cancelOrder(orderId: string): Promise<unknown> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/orders/${orderId}`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/orders/${orderId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` },
     });
     return response.json();
   }
 
-  async getOrderHistory(): Promise<any> {
+  async getOrderHistory(): Promise<unknown> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/orders`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/orders`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
     return response.json();
   }
 
-  async getOptionChain(underlying: string, expiry: string): Promise<any> {
+  async getOptionChain(underlying: string, expiry: string): Promise<unknown> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/market/option-chain?symbol=${underlying}&expiry=${expiry}`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
+    const response = await fetch(
+      `${this.growwConfig.apiBaseUrl}/v1/market/option-chain?symbol=${underlying}&expiry=${expiry}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
     return response.json();
   }
 
-  async getHistoricalCandles(symbol: string, interval: string, from: Date, to: Date): Promise<any> {
+  async getHistoricalCandles(symbol: string, interval: string, from: Date, to: Date): Promise<unknown> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${config.groww.apiBaseUrl}/v1/market/candles?symbol=${symbol}&interval=${interval}&from=${from.toISOString()}&to=${to.toISOString()}`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
+    const response = await fetch(
+      `${this.growwConfig.apiBaseUrl}/v1/market/candles?symbol=${symbol}&interval=${interval}&from=${from.toISOString()}&to=${to.toISOString()}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
     return response.json();
-  }
-
-  private encrypt(text: string, key: string): string {
-    return CryptoJS.AES.encrypt(text, key).toString();
-  }
-
-  private decrypt(ciphertext: string, key: string): string {
-    const bytes = CryptoJS.AES.decrypt(ciphertext, key);
-    return bytes.toString(CryptoJS.enc.Utf8);
   }
 
   async close(): Promise<void> {
     this.accessToken = null;
     this.refreshToken = null;
     this.tokenExpiry = null;
+    this.totpToken = null;
+    this.totpSecret = null;
   }
 }

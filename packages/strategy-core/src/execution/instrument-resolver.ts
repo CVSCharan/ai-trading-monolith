@@ -3,7 +3,7 @@
 // ============================================
 
 import { Instrument, ExecutionMode, SignalType, OptionType } from '../types';
-import { getISTDateString } from '../../../../packages/shared/src/timezone';
+import { getISTDateString } from '@groww-trading/shared';
 
 /**
  * Select strike and option type based on signal and execution mode

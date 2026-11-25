@@ -21,12 +21,40 @@ import { MarketDataService } from './services/market-data';
 import { PaperTradingEngine } from './services/paper-trading';
 import { LiveTradingEngine } from './services/live-trading';
 
-// Logger
-const logger = pino({ level: config.logLevel });
+// Logger (human-readable in dev, JSON + secret redaction in production)
+const logger = pino({
+  name: 'groww-engine',
+  level: config.logLevel,
+  redact: {
+    paths: [
+      '*.totp',
+      '*.totpSecret',
+      '*.totpToken',
+      '*.accessToken',
+      '*.refreshToken',
+      '*.apiKey',
+      '*.apiSecret',
+      '*.masterKey',
+    ],
+    censor: '[REDACTED]',
+  },
+  ...(process.env.NODE_ENV !== 'production'
+    ? {
+        transport: {
+          target: 'pino-pretty',
+          options: {
+            colorize: true,
+            translateTime: 'SYS:HH:MM:ss.l',
+            ignore: 'pid,hostname',
+          },
+        },
+      }
+    : {}),
+});
 
 // Database connections
-const sql = postgres(config.databaseUrl, { max: config.dbPoolSize });
-const db = drizzle(sql);
+const pgClient = postgres(config.databaseUrl, { max: config.dbPoolSize });
+export const db = drizzle(pgClient);
 
 // Services
 const wsManager = new WebSocketManager(logger);
@@ -56,8 +84,12 @@ const STATE_PUBLISH_INTERVAL = 5000; // 5 seconds
 async function startEngine() {
   logger.info('Starting trading engine...');
 
-  // Load Groww credentials and authenticate
-  await growwClient.initialize();
+  // Load Groww credentials and authenticate (non-fatal in dev if none configured yet)
+  try {
+    await growwClient.initialize();
+  } catch (err) {
+    logger.warn({ err }, 'Groww credentials not initialized — live Groww calls disabled until configured');
+  }
 
   // Start market data WebSocket
   await marketData.connect();
@@ -148,7 +180,7 @@ async function shutdown() {
   await growwClient.close();
 
   // Close database
-  await sql.end();
+  await pgClient.end();
 
   // Close HTTP server
   app.stop();
