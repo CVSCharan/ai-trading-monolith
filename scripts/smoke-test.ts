@@ -76,3 +76,18 @@ await assertStep('GET /api/upstox/status & /api/watchlist return 200', async () 
   if (!u.ok) throw new Error(`/api/upstox/status failed: ${u.status}`);
   if (!w.ok) throw new Error(`/api/watchlist failed: ${w.status}`);
 });
+
+await assertStep('GET /api/auth/sessions, /api/audit, /api/engine/health, /api/user/profile return 200', async () => {
+  const [sess, aud, eng, prof] = await Promise.all([
+    fetch(`${API_URL}/api/auth/sessions`, { headers: { Cookie: demoCookie } }),
+    fetch(`${API_URL}/api/audit`, { headers: { Cookie: demoCookie } }),
+    fetch(`${API_URL}/api/engine/health`, { headers: { Cookie: demoCookie } }),
+    fetch(`${API_URL}/api/user/profile`, { headers: { Cookie: demoCookie } }),
+  ]);
+  if (!sess.ok) throw new Error(`/api/auth/sessions failed: ${sess.status}`);
+  if (!aud.ok) throw new Error(`/api/audit failed: ${aud.status}`);
+  if (!eng.ok) throw new Error(`/api/engine/health failed: ${eng.status}`);
+  if (!prof.ok) throw new Error(`/api/user/profile failed: ${prof.status}`);
+  const sessJson = (await sess.json()) as { maxSessions?: number };
+  if (sessJson.maxSessions !== 3) throw new Error(`Expected maxSessions=3, got ${sessJson.maxSessions}`);
+});
