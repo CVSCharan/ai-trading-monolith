@@ -98,6 +98,46 @@ async function startEngine() {
     wsManager.broadcast('ticks', tick);
   });
 
+  // Route closed live bars (5m/15m/30m) into active paper trading strategies
+  marketData.onBarClose(async (closedBar) => {
+    for (const [userId, session] of commandProcessor.getActiveSessions().entries()) {
+      const generators = session.paper?.generators as
+        | Map<string, { generator: any; strategy: any; instruments: any[] }>
+        | undefined;
+      if (!generators) continue;
+
+      for (const entry of generators.values()) {
+        if (
+          entry.strategy.underlyingSymbol === closedBar.symbol &&
+          entry.strategy.timeframe === closedBar.timeframe
+        ) {
+          try {
+            const signals = await paperEngine.onBarClose(
+              userId,
+              entry.generator,
+              {
+                instrumentId: entry.instruments[0]?.id ?? 1,
+                timeframe: closedBar.timeframe,
+                barTime: closedBar.barTime,
+                open: closedBar.open,
+                high: closedBar.high,
+                low: closedBar.low,
+                close: closedBar.close,
+                volume: closedBar.volume,
+              },
+              entry.instruments ?? [],
+            );
+            for (const sig of signals) {
+              wsManager.broadcast('signals', sig);
+            }
+          } catch (err) {
+            logger.error({ err, userId, symbol: closedBar.symbol }, 'Failed processing closed live bar');
+          }
+        }
+      }
+    }
+  });
+
   // Start market data WebSocket
   await marketData.connect();
 

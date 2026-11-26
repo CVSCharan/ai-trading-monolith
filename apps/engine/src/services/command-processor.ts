@@ -35,6 +35,10 @@ export class CommandProcessor {
     this.logger = logger.child({ component: 'CommandProcessor' });
   }
 
+  getActiveSessions(): Map<string, { paper?: any; live?: any }> {
+    return this.activeSessions;
+  }
+
   async processCommand(cmd: any): Promise<void> {
     this.logger.info({ commandId: cmd.id, type: cmd.commandType, userId: cmd.userId }, 'Processing command');
 
@@ -117,7 +121,7 @@ export class CommandProcessor {
 
       // Create generator
       const generator = new StreamingSignalGenerator(strategy, instruments, 'paper');
-      generators.set(strategyId, { generator, strategy, position: null });
+      generators.set(strategyId, { generator, strategy, instruments, position: null });
     }
 
     this.activeSessions.set(userId, { paper: { portfolioId: portfolio.id, generators } });
