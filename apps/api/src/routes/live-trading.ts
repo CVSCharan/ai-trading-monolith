@@ -79,7 +79,7 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
 
     const { profitFactor, maxDrawdownPct } = calculatePaperPerformance(
       trades,
-      Number(profile?.paperCapital ?? 1000000),
+      Number(portfolio?.dayStartValue ?? 0),
     );
 
     const tokenValid =
@@ -88,11 +88,19 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
 
     return {
       envEnabled,
-      liveTradingEnabled: Boolean(profile?.liveTradingEnabled),
+      // A stale profile flag is not sufficient to arm live execution. The
+      // operator-authenticator 2FA flow does not exist yet, so report gated.
+      liveTradingEnabled: false,
+      liveTradingRequested: Boolean(profile?.liveTradingEnabled),
       gates: {
         paperTradeCount: { actual: trades.length, required: 100, passed: trades.length >= 100 },
-        profitFactor: { actual: Number(profitFactor.toFixed(2)), required: 1.5, passed: profitFactor > 1.5 },
+        profitFactor: {
+          actual: Number.isFinite(profitFactor) ? Number(profitFactor.toFixed(2)) : '∞',
+          required: 1.5,
+          passed: profitFactor > 1.5,
+        },
         maxDrawdownPct: { actual: Number(maxDrawdownPct.toFixed(2)), maxAllowed: 10, passed: maxDrawdownPct < 10 },
+        operatorTwoFactor: { passed: false },
         adminApproved: { passed: Boolean(profile?.liveTradingApprovedAt) },
         growwCredentials: { passed: tokenValid },
         envFlag: { passed: envEnabled },
@@ -103,102 +111,20 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
     if (!requireRole(userRole, 'SUPER_ADMIN', set)) return { error: 'Forbidden: SUPER_ADMIN only' };
 
-    if (process.env['ENABLE_LIVE_TRADING'] !== 'true') {
-      set.status = 403;
-      return { error: 'Live trading is disabled by server environment flag (ENABLE_LIVE_TRADING=false)' };
-    }
-
-    const [profile] = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.userId, userId))
-      .limit(1);
-
-    if (!profile?.liveTradingApprovedAt) {
-      set.status = 403;
-      return { error: 'Admin approval (liveTradingApprovedAt) is required before enabling live trading' };
-    }
-
-    const [cred] = await db
-      .select({ isActive: growwCredentials.isActive, tokenExpiresAt: growwCredentials.tokenExpiresAt })
-      .from(growwCredentials)
-      .where(eq(growwCredentials.userId, userId))
-      .limit(1);
-
-    if (!cred?.isActive) {
-      set.status = 400;
-      return { error: 'Active Groww credentials are required' };
-    }
-
-    // Gate: >= 100 paper trades with PF > 1.5
-    const [portfolio] = await db
-      .select({ id: paperPortfolios.id })
-      .from(paperPortfolios)
-      .where(eq(paperPortfolios.userId, userId))
-      .limit(1);
-
-    const trades = portfolio
-      ? await db
-          .select({ netPnl: paperTrades.netPnl })
-          .from(paperTrades)
-          .where(and(
-            eq(paperTrades.portfolioId, portfolio.id),
-            isNotNull(paperTrades.exitTime),
-            isNotNull(paperTrades.netPnl),
-          ))
-          .orderBy(asc(paperTrades.exitTime))
-      : [];
-
-    if (trades.length < 100) {
-      set.status = 403;
-      return {
-        error: `Paper trading gate not met: ${trades.length}/100 completed paper trades logged`,
-      };
-    }
-
-    const { profitFactor, maxDrawdownPct } = calculatePaperPerformance(
-      trades,
-      Number(profile.paperCapital ?? 1000000),
-    );
-
-    if (profitFactor <= 1.5) {
-      set.status = 403;
-      return { error: `Paper profit factor (${profitFactor.toFixed(2)}) must be > 1.5` };
-    }
-
-    if (maxDrawdownPct >= 10) {
-      set.status = 403;
-      return { error: `Paper max drawdown (${maxDrawdownPct.toFixed(2)}%) must be < 10%` };
-    }
-
-    await db
-      .update(userProfiles)
-      .set({ liveTradingEnabled: true, updatedAt: new Date() })
-      .where(eq(userProfiles.userId, userId));
-
+    // The application has no operator-authenticator 2FA flow. Fail closed;
+    // broker TOTP credentials are not a substitute for operator 2FA.
     await logAuditEvent({
       userId,
-      action: 'LIVE_TRADING_ENABLED',
+      action: 'LIVE_TRADING_ENABLE_BLOCKED',
       entityType: 'user_profile',
       entityId: userId,
-      details: { paperTradeCount: trades.length, profitFactor },
+      details: { reason: 'operator_2fa_unavailable' },
     });
-
-    // Enqueue enable_live command so engine activates live strategy generators
-    const [cmd] = await db
-      .insert(engineCommands)
-      .values({
-        userId,
-        commandType: 'enable_live',
-        payload: {
-          enabled: true,
-          twoFactorVerified: true,
-        },
-        status: 'pending',
-      })
-      .returning();
-
-    return { enabled: true, commandId: cmd?.id };
+    set.status = 503;
+    return {
+      error: 'Live trading enable is unavailable until operator 2FA is configured and verified.',
+      code: 'LIVE_TRADING_2FA_UNAVAILABLE',
+    };
   })
   .post('/emergency-stop', async ({ body, userId, userRole, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };

@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { SkeletonMetricCard, SkeletonTable } from '../components/ui/skeleton';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 
 interface StrategyOption {
   id: string;
@@ -22,13 +24,9 @@ export function BacktestResultsPage() {
   const [endDate, setEndDate] = useState('2024-01-31');
   const [runId, setRunId] = useState<string | null>(null);
 
-  const { data: strategiesData } = useQuery<{ strategies: StrategyOption[] }>({
+  const { data: strategiesData, error: strategiesError, refetch: refetchStrategies } = useQuery<{ strategies: StrategyOption[] }>({
     queryKey: ['strategies'],
-    queryFn: async () => {
-      const res = await fetch('/api/strategies', { credentials: 'include' });
-      if (!res.ok) return { strategies: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ strategies: StrategyOption[] }>('/api/strategies', { credentials: 'include' }),
   });
 
   const effectiveStrategyId = strategyId || strategiesData?.strategies?.[0]?.id || '';
@@ -66,26 +64,20 @@ export function BacktestResultsPage() {
     onSuccess: () => navigate('/bot'),
   });
 
-  const { data: runData } = useQuery<{ run: Record<string, any> }>({
+  const { data: runData, isLoading: isRunLoading, error: runError, refetch: refetchRun } = useQuery<{ run: Record<string, any> }>({
     queryKey: ['backtest-run', runId],
     enabled: Boolean(runId),
     refetchInterval: (q) =>
-      q.state.data?.run?.status === 'completed' || q.state.data?.run?.status === 'failed'
+      q.state.error || q.state.data?.run?.status === 'completed' || q.state.data?.run?.status === 'failed'
         ? false
         : 2000,
-    queryFn: async () => {
-      const res = await fetch(`/api/backtest/runs/${runId}`, { credentials: 'include' });
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ run: Record<string, any> }>(`/api/backtest/runs/${encodeURIComponent(runId ?? '')}`, { credentials: 'include' }),
   });
 
-  const { data: tradesData } = useQuery<{ trades: Array<Record<string, any>> }>({
+  const { data: tradesData, isLoading: isTradesLoading, error: tradesError, refetch: refetchTrades } = useQuery<{ trades: Array<Record<string, any>> }>({
     queryKey: ['backtest-trades', runId],
     enabled: runData?.run?.status === 'completed',
-    queryFn: async () => {
-      const res = await fetch(`/api/backtest/runs/${runId}/trades`, { credentials: 'include' });
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ trades: Array<Record<string, any>> }>(`/api/backtest/runs/${encodeURIComponent(runId ?? '')}/trades`, { credentials: 'include' }),
   });
 
   const strategies = strategiesData?.strategies ?? [];
@@ -106,6 +98,10 @@ export function BacktestResultsPage() {
           </Button>
         )}
       </div>
+
+      {strategiesError && <QueryErrorState error={strategiesError} onRetry={() => void refetchStrategies()} title="Strategies are unavailable" />}
+      {runError && <QueryErrorState error={runError} onRetry={() => void refetchRun()} title="Backtest results are unavailable" />}
+      {tradesError && <QueryErrorState error={tradesError} onRetry={() => void refetchTrades()} title="Backtest trades are unavailable" />}
 
       <Card>
         <CardHeader>
@@ -146,7 +142,7 @@ export function BacktestResultsPage() {
         </CardContent>
       </Card>
 
-      {(runMutation.isPending || runData?.run?.status === 'running') && (
+      {(runMutation.isPending || (runId && isRunLoading) || runData?.run?.status === 'running') && !runError && (
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <SkeletonMetricCard />
@@ -187,6 +183,13 @@ export function BacktestResultsPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {runData?.run?.status === 'completed' && isTradesLoading && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4"><SkeletonTable rows={5} cols={3} /></div>
+      )}
+      {runData?.run?.status === 'completed' && !isTradesLoading && !tradesError && (tradesData?.trades ?? []).length === 0 && (
+        <p className="text-sm text-slate-400">This backtest completed without producing trades.</p>
       )}
 
       {(tradesData?.trades ?? []).length > 0 && (

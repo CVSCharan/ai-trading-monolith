@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
-import { EquityAreaChart } from '../components/charts/EquityAreaChart';
 import { PortfolioBar } from '../components/PortfolioBar';
 import { SignalFeed, type SignalFeedItem } from '../components/SignalFeed';
 import { WatchlistPanel } from '../components/WatchlistPanel';
@@ -10,14 +9,16 @@ import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Skeleton, SkeletonChart, SkeletonMarketGrid, SkeletonMetricCard, SkeletonTable } from '../components/ui/skeleton';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 
-interface PaperPortfolioResponse {
-  portfolio?: {
+interface PaperDashboardResponse {
+  portfolio: {
     cashBalance?: string | number;
     totalValue?: string | number;
     dailyPnl?: string | number;
-  };
-  positions?: Array<{
+  } | null;
+  positions: Array<{
     id: string;
     optionSymbol: string;
     quantity: number;
@@ -25,7 +26,7 @@ interface PaperPortfolioResponse {
     currentPrice?: string | number;
     unrealizedPnl?: string | number;
   }>;
-  trades?: Array<{
+  trades: Array<{
     id: string;
     optionSymbol?: string;
     netPnl?: string | number;
@@ -34,46 +35,36 @@ interface PaperPortfolioResponse {
   }>;
 }
 
-const DEFAULT_SPARKLINE = [
-  { label: '09:30', equity: 1000000 },
-  { label: '10:30', equity: 1001850 },
-  { label: '11:30', equity: 1001200 },
-  { label: '12:30', equity: 1004400 },
-  { label: '13:30', equity: 1006150 },
-  { label: '15:00', equity: 1007900 },
-];
-
 export function DashboardPage() {
-  const { data: paper, isLoading } = useQuery<PaperPortfolioResponse>({
+  const { data: paper, isLoading, error, refetch, isFetching } = useQuery<PaperDashboardResponse>({
     queryKey: ['paper-portfolio-overview'],
     queryFn: async () => {
-      const res = await fetch('/api/paper/portfolio', { credentials: 'include' });
-      if (!res.ok) return {};
-      return res.json();
+      const credentials = { credentials: 'include' as const };
+      const [portfolioResponse, positionsResponse, historyResponse] = await Promise.all([
+        fetchJson<{ portfolio: PaperDashboardResponse['portfolio'] }>('/api/paper/portfolio', credentials),
+        fetchJson<{ positions: PaperDashboardResponse['positions'] }>('/api/paper/positions', credentials),
+        fetchJson<{ trades: PaperDashboardResponse['trades'] }>('/api/paper/history?limit=50', credentials),
+      ]);
+      return {
+        portfolio: portfolioResponse.portfolio,
+        positions: positionsResponse.positions,
+        trades: historyResponse.trades,
+      } satisfies PaperDashboardResponse;
     },
     refetchInterval: 10_000,
   });
 
-  const capital = Number(paper?.portfolio?.totalValue ?? 1000000);
+  const capital = Number(paper?.portfolio?.totalValue ?? 0);
   const dayPnl = Number(paper?.portfolio?.dailyPnl ?? 0);
   const trades = paper?.trades ?? [];
   const positions = paper?.positions ?? [];
 
   const wins = trades.filter((t) => Number(t.netPnl ?? 0) > 0);
   const losses = trades.filter((t) => Number(t.netPnl ?? 0) < 0);
-  const winRatePct = trades.length > 0 ? (wins.length / trades.length) * 100 : 0;
+  const winRatePct = trades.length > 0 ? (wins.length / trades.length) * 100 : null;
   const grossWin = wins.reduce((s, t) => s + Number(t.netPnl ?? 0), 0);
   const grossLoss = Math.abs(losses.reduce((s, t) => s + Number(t.netPnl ?? 0), 0));
-  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? 2.0 : 0;
-
-  let running = 1000000;
-  const equitySeries =
-    trades.length > 0
-      ? trades.slice(0, 20).map((t, i) => {
-          running += Number(t.netPnl ?? 0);
-          return { label: `#${i + 1}`, equity: Math.round(running) };
-        })
-      : DEFAULT_SPARKLINE;
+  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : null;
 
   const recentSignals: SignalFeedItem[] = trades.slice(0, 5).map((t) => ({
     id: t.id,
@@ -84,7 +75,7 @@ export function DashboardPage() {
 
   if (isLoading && !paper) {
     return (
-      <div className="space-y-6 animate-pulse">
+      <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard data">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
             <Skeleton className="h-8 w-64" />
@@ -122,8 +113,13 @@ export function DashboardPage() {
     );
   }
 
+  if (error && !paper) {
+    return <QueryErrorState error={error} onRetry={() => void refetch()} title="Dashboard data is unavailable" />;
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={isFetching}>
+      {error && <QueryErrorState error={error} onRetry={() => void refetch()} title="Showing the last loaded dashboard data" />}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-white">AI Trader Command Center</h2>
@@ -162,13 +158,15 @@ export function DashboardPage() {
             <div>
               <CardTitle>Equity Curve</CardTitle>
               <CardDescription>
-                {trades.length > 0 ? 'Paper session equity progression' : 'Sample intraday projection (launch Paper Bot for live equity)'}
+                Historical equity snapshots are not available yet
               </CardDescription>
             </div>
             <Badge variant="success">EMA 9/21</Badge>
           </CardHeader>
           <CardContent className="h-64">
-            <EquityAreaChart data={equitySeries} />
+            <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
+              Realized trade history is available in Paper Trading; a true equity curve requires portfolio snapshots.
+            </div>
           </CardContent>
         </Card>
 

@@ -4,6 +4,8 @@ import { Activity, CheckCircle2, ChevronDown, KeyRound, RefreshCw, ShieldCheck }
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 
 interface GrowwStatusResponse {
   connected: boolean;
@@ -39,12 +41,10 @@ export function SettingsPage() {
   const [perTradeRiskPct, setPerTradeRiskPct] = useState(1);
   const [shortOptionStopLossPct, setShortOptionStopLossPct] = useState(100);
 
-  useQuery({
+  const { error: profileError, isLoading: isProfileLoading } = useQuery({
     queryKey: ['user-profile'],
     queryFn: async () => {
-      const res = await fetch('/api/user/profile', { credentials: 'include' });
-      if (!res.ok) return null;
-      const json = (await res.json()) as {
+      const json = await fetchJson<{
         profile?: {
           riskLimits?: {
             maxDailyLossPct?: number;
@@ -53,7 +53,7 @@ export function SettingsPage() {
             shortOptionStopLossPct?: number;
           };
         };
-      };
+      }>('/api/user/profile', { credentials: 'include' });
       const rl = json.profile?.riskLimits;
       if (rl) {
         if (rl.maxDailyLossPct !== undefined) setMaxDailyLossPct(rl.maxDailyLossPct);
@@ -85,33 +85,14 @@ export function SettingsPage() {
     onError: (e: Error) => setStatusMsg(e.message),
   });
 
-  const { data: growwStatus, refetch } = useQuery<GrowwStatusResponse>({
+  const { data: growwStatus, refetch, error: growwError } = useQuery<GrowwStatusResponse>({
     queryKey: ['groww-status'],
-    queryFn: async () => {
-      const res = await fetch('/api/groww/status', { credentials: 'include' });
-      if (!res.ok) return { connected: false, source: 'none' };
-      return res.json();
-    },
+    queryFn: () => fetchJson<GrowwStatusResponse>('/api/groww/status', { credentials: 'include' }),
   });
 
-  const { data: upstoxStatus, refetch: refetchUpstox } = useQuery<UpstoxStatusResponse>({
+  const { data: upstoxStatus, refetch: refetchUpstox, error: upstoxError } = useQuery<UpstoxStatusResponse>({
     queryKey: ['upstox-status'],
-    queryFn: async () => {
-      const res = await fetch('/api/upstox/status', { credentials: 'include' });
-      if (!res.ok) {
-        return {
-          analyticsConnected: false,
-          tradingConnected: false,
-          oauthConfigured: false,
-          maskedAnalyticsToken: null,
-          maskedAccessToken: null,
-          algoName: null,
-          activeDataBroker: 'groww',
-          activeExecutionBroker: 'groww',
-        };
-      }
-      return res.json();
-    },
+    queryFn: () => fetchJson<UpstoxStatusResponse>('/api/upstox/status', { credentials: 'include' }),
   });
 
   const signInMutation = useMutation({
@@ -184,6 +165,9 @@ export function SettingsPage() {
           {statusMsg}
         </div>
       )}
+      {profileError && <QueryErrorState error={profileError} title="Saved risk limits could not be loaded" />}
+      {growwError && <QueryErrorState error={growwError} onRetry={() => void refetch()} title="Groww credential status is unavailable" />}
+      {upstoxError && <QueryErrorState error={upstoxError} onRetry={() => void refetchUpstox()} title="Upstox status is unavailable" />}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -365,7 +349,7 @@ export function SettingsPage() {
             variant="primary"
             size="sm"
             onClick={() => saveRiskMutation.mutate()}
-            disabled={saveRiskMutation.isPending}
+            disabled={saveRiskMutation.isPending || isProfileLoading || Boolean(profileError)}
           >
             {saveRiskMutation.isPending ? 'Saving…' : 'Save Risk Limits'}
           </Button>

@@ -5,6 +5,8 @@ import { SymbolSearchInput } from '../components/SymbolSearchInput';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 
 interface StrategyRow {
   id: string;
@@ -26,13 +28,9 @@ export function StrategyBuilderPage() {
   const [entryEndTime, setEntryEndTime] = useState('11:30');
   const [lots, setLots] = useState(1);
 
-  const { data } = useQuery<{ strategies: StrategyRow[] }>({
+  const { data, error, refetch } = useQuery<{ strategies: StrategyRow[] }>({
     queryKey: ['strategies'],
-    queryFn: async () => {
-      const res = await fetch('/api/strategies', { credentials: 'include' });
-      if (!res.ok) return { strategies: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ strategies: StrategyRow[] }>('/api/strategies', { credentials: 'include' }),
   });
 
   const createMutation = useMutation({
@@ -60,6 +58,7 @@ export function StrategyBuilderPage() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold text-white">Strategy Builder</h2>
+      {error && <QueryErrorState error={error} onRetry={() => void refetch()} title="Saved strategies are unavailable" />}
 
       <Card>
         <CardHeader>

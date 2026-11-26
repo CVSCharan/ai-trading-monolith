@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
+import { fetchJson } from '../lib/api';
 
 export interface InstrumentSearchHit {
   symbol: string;
@@ -39,16 +40,14 @@ export function SymbolSearchInput({
     return () => clearTimeout(id);
   }, [value]);
 
-  const { data } = useQuery<{ results: InstrumentSearchHit[] }>({
+  const { data, error } = useQuery<{ results: InstrumentSearchHit[] }>({
     queryKey: ['instrument-search', debounced, segment],
     enabled: open,
     queryFn: async () => {
       const qs = new URLSearchParams({ q: debounced, segment });
-      const res = await fetch(`/api/instruments/search?${qs.toString()}`, {
+      return fetchJson<{ results: InstrumentSearchHit[] }>(`/api/instruments/search?${qs.toString()}`, {
         credentials: 'include',
       });
-      if (!res.ok) return { results: [] };
-      return res.json();
     },
   });
 
@@ -74,7 +73,9 @@ export function SymbolSearchInput({
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div className="absolute left-0 right-0 mt-1.5 z-40 max-h-60 overflow-y-auto thin-scrollbar rounded-xl border border-slate-800 bg-slate-900/95 backdrop-blur-xl p-1.5 shadow-2xl">
-            {results.length === 0 ? (
+            {error ? (
+              <div className="px-3 py-2 text-xs text-rose-300" role="alert">Instrument search is unavailable.</div>
+            ) : results.length === 0 ? (
               <div className="px-3 py-2 text-xs text-slate-400">
                 Type a symbol (e.g. RELIANCE, TCS, NIFTY)…
               </div>

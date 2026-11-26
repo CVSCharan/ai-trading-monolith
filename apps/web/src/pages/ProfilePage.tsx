@@ -12,6 +12,8 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { useAuth } from '../context/AuthContext';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 
 interface SessionItem {
   id: string;
@@ -41,30 +43,24 @@ export function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [feedback, setFeedback] = useState<{ variant: 'info' | 'danger' | 'success'; text: string } | null>(null);
 
-  useQuery({
+  const { error: profileError } = useQuery({
     queryKey: ['user-profile'],
     queryFn: async () => {
-      const res = await fetch('/api/user/profile', { credentials: 'include' });
-      if (!res.ok) return null;
-      const data = (await res.json()) as {
+      const data = await fetchJson<{
         profile?: { displayName?: string | null; timezone?: string | null } | null;
-      };
+      }>('/api/user/profile', { credentials: 'include' });
       if (data.profile?.displayName) setDisplayName(data.profile.displayName);
       if (data.profile?.timezone) setTimezone(data.profile.timezone);
       return data;
     },
   });
 
-  const { data: sessionsData, refetch: refetchSessions } = useQuery<{
+  const { data: sessionsData, refetch: refetchSessions, error: sessionsError } = useQuery<{
     maxSessions: number;
     sessions: SessionItem[];
   }>({
     queryKey: ['auth-sessions'],
-    queryFn: async () => {
-      const res = await fetch('/api/auth/sessions', { credentials: 'include' });
-      if (!res.ok) return { maxSessions: 3, sessions: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ maxSessions: number; sessions: SessionItem[] }>('/api/auth/sessions', { credentials: 'include' }),
   });
 
   const saveProfileMutation = useMutation({
@@ -160,6 +156,8 @@ export function ProfilePage() {
       </div>
 
       {feedback && <Alert variant={feedback.variant}>{feedback.text}</Alert>}
+      {profileError && <QueryErrorState error={profileError} title="Profile data is unavailable" />}
+      {sessionsError && <QueryErrorState error={sessionsError} onRetry={() => void refetchSessions()} title="Active sessions are unavailable" />}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <RoleGuard role="SUPER_ADMIN" message="Demo account profile is read-only.">
@@ -258,7 +256,7 @@ export function ProfilePage() {
           </Button>
         </CardHeader>
         <CardContent>
-          {sessions.length === 0 ? (
+          {sessionsError && !sessionsData ? null : sessions.length === 0 ? (
             <p className="text-xs text-slate-400">No active sessions found.</p>
           ) : (
             <div className="space-y-2.5">

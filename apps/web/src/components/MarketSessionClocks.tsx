@@ -4,6 +4,8 @@ import { Bell, Clock, Globe, X, AlertTriangle, CheckCircle, ShieldAlert } from '
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { SkeletonMarketGrid } from './ui/skeleton';
+import { QueryErrorState } from './ui/query-feedback';
+import { fetchJson } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 
 export interface MarketSessionInfo {
@@ -39,11 +41,7 @@ interface MarketAlertData {
 export function useMarketSessions() {
   return useQuery<MarketSessionsResponse>({
     queryKey: ['market-sessions'],
-    queryFn: async () => {
-      const res = await fetch('/api/market/sessions', { credentials: 'include' });
-      if (!res.ok) return { sessions: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<MarketSessionsResponse>('/api/market/sessions', { credentials: 'include' }),
     refetchInterval: 15_000,
   });
 }
@@ -116,7 +114,7 @@ export function MarketAlertToastBanner() {
  */
 export function MarketClockHeaderPill() {
   const [open, setOpen] = useState(false);
-  const { data } = useMarketSessions();
+  const { data, isLoading, error, refetch } = useMarketSessions();
   const sessions = data?.sessions ?? [];
 
   // Primary market for display pill is NSE F&O or NSE Equity
@@ -164,7 +162,9 @@ export function MarketClockHeaderPill() {
         <Clock className="h-3.5 w-3.5" />
         <span className="hidden sm:inline font-semibold">NSE:</span>
         <span>
-          {primary?.status === 'OPEN'
+          {isLoading && !data ? 'LOADING'
+            : error && !data ? 'UNKNOWN'
+              : primary?.status === 'OPEN'
             ? 'OPEN'
             : primary?.status === 'CLOSING_SOON'
               ? 'CLOSING SOON'
@@ -194,6 +194,7 @@ export function MarketClockHeaderPill() {
             </div>
 
             <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+              {error && <QueryErrorState error={error} onRetry={() => void refetch()} title="Market session data is unavailable" />}
               {sessions.map((m) => (
                 <div
                   key={m.id}
@@ -235,7 +236,7 @@ export function MarketClockHeaderPill() {
  * Full card for Dashboard view displaying all 7 market sessions.
  */
 export function MarketSessionsDashboardCard() {
-  const { data, isLoading } = useMarketSessions();
+  const { data, isLoading, error, refetch } = useMarketSessions();
   const sessions = data?.sessions ?? [];
 
   return (
@@ -255,9 +256,10 @@ export function MarketSessionsDashboardCard() {
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {error && <QueryErrorState error={error} onRetry={() => void refetch()} title={sessions.length ? 'Showing last known market sessions' : 'Market sessions are unavailable'} />}
+        {isLoading && !data ? (
           <SkeletonMarketGrid />
-        ) : (
+        ) : error && sessions.length === 0 ? null : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
             {sessions.map((s) => (
               <div

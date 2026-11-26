@@ -9,7 +9,14 @@
 
 | Ticket | Title | Sprint | Owner | ETA |
 |--------|-------|--------|-------|-----|
-| *(All Immediate & Sprint 1–11 coding/CI tasks complete — only manual/operational gates remain below)* | — | — | — | — |
+| S19-005 | Live 2FA: Fail-closed API/engine mitigation done; implement TOTP enrollment & step-up verification | Sprint 19 | Team | 2026-12-05 |
+| S19-006 | Fix signal classification: Replace `startsWith('ENTRY')` with `metadata.isExit` in `LiveTradingEngine` | Sprint 19 | Team | 2026-12-05 |
+| S19-007 | Live option pricing: Wire `optionPriceLookup` for live quotes instead of using underlying index `sig.spotPrice` | Sprint 19 | Team | 2026-12-06 |
+| S19-008 | Square-off fill tracking: Prevent premature `CLOSED` status, record close order ID, wait for broker fill | Sprint 19 | Team | 2026-12-07 |
+| S19-009 | Durable state: Implement PostgreSQL `live_positions` and `live_orders` replacing in-memory `Map` | Sprint 19 | Team | 2026-12-10 |
+| S19-010 | Startup ordering: Run multi-broker reconciliation before starting market feeds and command pollers | Sprint 19 | Team | 2026-12-10 |
+| S19-011 | Integration tests: Test real `BUY`/`SELL` strategy signals with realistic option quotes | Sprint 19 | Team | 2026-12-12 |
+| S19-012 | Regulatory compliance: Algo order tagging (`X-Algo-Name`) & NSE circular INSP77559 undertaking review | Sprint 19 | Team | 2026-12-16 |
 
 ---
 
@@ -141,7 +148,7 @@
 | S16-001..S16-004 | Unlimited Any-Stock Paper Trading (`/paper/order`, `/close/:id`, `/reset`, Trade History, Any-Symbol Strategy) | 2026-11-26 |
 | S17-001..S17-003 | Live Quote Auto-Pricing (`GET /api/market/quote`), Auto-LTP Paper Orders & Dynamic Watchlist Feed | 2026-11-26 |
 | S18-001..S18-004 | Multi-Market Session Clocks, US-DST Aware Schedules, Engine Lifecycle Crons & In-App Alerts | 2026-11-26 |
-| S19-UI | Glassmorphic Skeleton Loading Architecture across Dashboard, Auditor, Option Chain, Bot & Paper Desks | 2026-11-26 |
+| S19-001..S19-004 | Phase 1 Hardening: Emergency Stop Async Acknowledgment, Bounded Limit Order Square-Offs (`EMERGENCY_LIMIT_BUFFER_PCT`), Exit-Time 10% Drawdown Gate & Glassmorphic Skeletons | 2026-11-26 |
 
 ---
 

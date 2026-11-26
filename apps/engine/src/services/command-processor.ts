@@ -153,41 +153,11 @@ export class CommandProcessor {
     return { stopped: true };
   }
 
-  private async enableLive(userId: string, payload: any): Promise<any> {
-    const { strategyIds, twoFactorVerified } = payload;
-
-    if (!twoFactorVerified) {
-      throw new Error('2FA verification required for live trading');
-    }
-
-    // Check user has live trading enabled in profile
-    // (This would be verified by API before sending command)
-
-    // Initialize live trading engine
-    // Similar to paper but with real orders
-    const generators = new Map();
-    const targetStrategyIds =
-      Array.isArray(strategyIds) && strategyIds.length > 0
-        ? strategyIds
-        : (
-            await this.db
-              .select({ id: strategiesTable.id })
-              .from(strategiesTable)
-              .where(eq(strategiesTable.userId, userId))
-          ).map((s: any) => s.id);
-
-    for (const strategyId of targetStrategyIds) {
-      const strategy = await this.loadStrategy(strategyId);
-      if (!strategy) continue;
-
-      const instruments = await this.loadInstruments();
-      const generator = new StreamingSignalGenerator(strategy, instruments, 'live');
-      generators.set(strategyId, { generator, strategy, position: null });
-    }
-
-    this.activeSessions.set(userId, { ...this.activeSessions.get(userId), live: { generators } });
-
-    return { enabled: true, strategies: targetStrategyIds };
+  private async enableLive(_userId: string, _payload: any): Promise<any> {
+    // Defense in depth: do not trust a boolean supplied in a queued command as
+    // proof of operator 2FA. The API has no enrolled operator-authenticator
+    // flow yet, so reject even stale commands that contain the old assertion.
+    throw new Error('Live trading is disabled until operator 2FA verification is implemented.');
   }
 
   private async disableLive(userId: string, payload: any): Promise<any> {
@@ -247,7 +217,7 @@ export class CommandProcessor {
       throw new Error(`Emergency stop incomplete: ${failures.join('; ')}`);
     }
 
-    return { emergencyStop: true, reason, closeOrdersSubmitted: Boolean(closePositions) };
+    return { emergencyStop: true, reason, closeOrdersRequested: Boolean(closePositions) };
   }
 
   private async updateRisk(userId: string, payload: any): Promise<any> {
@@ -441,20 +411,25 @@ export class CommandProcessor {
         )
       );
 
+    const failures: string[] = [];
     for (const order of pendingOrders) {
       if (!order.growwOrderId) {
-        throw new Error(`Cannot cancel live order ${order.id}: broker order ID is missing`);
+        failures.push(`cannot cancel ${order.id}: broker order ID is missing`);
+        continue;
       }
       try {
         await this.growwClient.cancelOrder(order.growwOrderId);
+        await this.db
+          .update(liveFills)
+          .set({ status: 'CANCELLED', updatedAt: new Date(), completedAt: new Date() })
+          .where(eq(liveFills.id, order.id));
       } catch (err) {
         this.logger.error({ err, orderId: order.growwOrderId }, 'Failed to cancel Groww order');
-        throw err;
+        failures.push(`${order.growwOrderId}: ${err instanceof Error ? err.message : 'cancellation failed'}`);
       }
-      await this.db
-        .update(liveFills)
-        .set({ status: 'CANCELLED', updatedAt: new Date(), completedAt: new Date() })
-        .where(eq(liveFills.id, order.id));
+    }
+    if (failures.length > 0) {
+      throw new Error(failures.join('; '));
     }
   }
 

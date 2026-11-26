@@ -4,8 +4,8 @@ import { Card, CardContent } from './ui/card';
 export interface PortfolioBarProps {
   capital: number;
   dayPnl: number;
-  winRatePct: number;
-  profitFactor: number;
+  winRatePct: number | null;
+  profitFactor: number | null;
   paperTradeCount: number;
   mode: 'PAPER' | 'LIVE';
 }
@@ -53,28 +53,18 @@ export function PortfolioBar({
         <CardContent className="p-4">
           <div className="text-xs text-slate-400">Win Rate &amp; Profit Factor</div>
           <div className="mt-2 flex items-baseline gap-2 font-mono text-2xl font-semibold tabular-nums text-white">
-            <span>{winRatePct.toFixed(1)}%</span>
-            <span className="text-sm text-sky-400">PF {profitFactor.toFixed(2)}</span>
+            <span>{winRatePct === null ? '—' : `${winRatePct.toFixed(1)}%`}</span>
+            <span className="text-sm text-sky-400">PF {profitFactor === null ? '—' : profitFactor.toFixed(2)}</span>
           </div>
-          <div className="mt-1 text-xs text-slate-500">Live gate requires PF &gt; 1.50</div>
+          <div className="mt-1 text-xs text-slate-500">Based on the latest history window; see Live Trading for gate metrics</div>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Live Gate Progress</span>
-            <span className="font-mono text-slate-200">{Math.min(paperTradeCount, 100)} / 100</span>
-          </div>
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-800">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-all"
-              style={{ width: `${Math.min(100, paperTradeCount)}%` }}
-            />
-          </div>
-          <div className="mt-2 text-xs text-slate-500">
-            {paperTradeCount >= 100 ? 'Trade count gate satisfied' : `${100 - paperTradeCount} paper trades remaining`}
-          </div>
+          <div className="text-xs text-slate-400">Recent Closed Paper Trades</div>
+          <div className="mt-2 font-mono text-2xl font-semibold tabular-nums text-white">{paperTradeCount}</div>
+          <div className="mt-1 text-xs text-slate-500">Loaded history window; check Live Trading for current gate status.</div>
         </CardContent>
       </Card>
     </div>

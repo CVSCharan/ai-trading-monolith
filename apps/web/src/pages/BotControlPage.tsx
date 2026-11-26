@@ -12,6 +12,8 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Select } from '../components/ui/select';
 import { Skeleton, SkeletonMetricCard } from '../components/ui/skeleton';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 
 interface EngineHealthResponse {
   health: {
@@ -48,46 +50,30 @@ export function BotControlPage() {
   const [selectedStrategyId, setSelectedStrategyId] = useState('');
   const [feedback, setFeedback] = useState('');
 
-  const { data: healthData, isLoading: isHealthLoading } = useQuery<EngineHealthResponse>({
+  const { data: healthData, isLoading: isHealthLoading, error: healthError, refetch: refetchHealth } = useQuery<EngineHealthResponse>({
     queryKey: ['engine-health'],
     refetchInterval: 5_000,
-    queryFn: async () => {
-      const res = await fetch('/api/engine/health', { credentials: 'include' });
-      if (!res.ok) return { health: null };
-      return res.json();
-    },
+    queryFn: () => fetchJson<EngineHealthResponse>('/api/engine/health', { credentials: 'include' }),
   });
 
-  const { data: stateData } = useQuery<EngineStateResponse>({
+  const { data: stateData, error: stateError, refetch: refetchState } = useQuery<EngineStateResponse>({
     queryKey: ['engine-state'],
     refetchInterval: 5_000,
-    queryFn: async () => {
-      const res = await fetch('/api/engine/state', { credentials: 'include' });
-      if (!res.ok) return { states: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<EngineStateResponse>('/api/engine/state', { credentials: 'include' }),
   });
 
-  const { data: strategiesData } = useQuery<{ strategies: StrategyRow[] }>({
+  const { data: strategiesData, error: strategiesError, refetch: refetchStrategies } = useQuery<{ strategies: StrategyRow[] }>({
     queryKey: ['strategies'],
-    queryFn: async () => {
-      const res = await fetch('/api/strategies', { credentials: 'include' });
-      if (!res.ok) return { strategies: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ strategies: StrategyRow[] }>('/api/strategies', { credentials: 'include' }),
   });
 
-  const { data: brokerData } = useQuery<{
+  const { data: brokerData, error: brokerError, refetch: refetchBroker } = useQuery<{
     activeDataBroker?: string;
     activeExecutionBroker?: string;
     analyticsConnected?: boolean;
   }>({
     queryKey: ['upstox-status'],
-    queryFn: async () => {
-      const res = await fetch('/api/upstox/status', { credentials: 'include' });
-      if (!res.ok) return {};
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ activeDataBroker?: string; activeExecutionBroker?: string; analyticsConnected?: boolean }>('/api/upstox/status', { credentials: 'include' }),
   });
 
   const startBotMutation = useMutation({
@@ -139,7 +125,7 @@ export function BotControlPage() {
       if (!res.ok) throw new Error('Kill switch failed');
       return res.json();
     },
-    onSuccess: () => setFeedback('EMERGENCY STOP triggered across all open orders & positions.'),
+    onSuccess: () => setFeedback('Emergency stop queued. Broker cancellations and protected limit close orders are processing; verify positions are flat.'),
     onError: (e: Error) => setFeedback(e.message),
   });
 
@@ -167,6 +153,10 @@ export function BotControlPage() {
       </div>
 
       {feedback && <Alert variant="info">{feedback}</Alert>}
+      {healthError && <QueryErrorState error={healthError} onRetry={() => void refetchHealth()} title="Engine health is unavailable" />}
+      {stateError && <QueryErrorState error={stateError} onRetry={() => void refetchState()} title={states.length ? 'Showing last known bot state' : 'Bot state is unavailable'} />}
+      {strategiesError && <QueryErrorState error={strategiesError} onRetry={() => void refetchStrategies()} title={strategies.length ? 'Showing last loaded strategies' : 'Strategies are unavailable'} />}
+      {brokerError && <QueryErrorState error={brokerError} onRetry={() => void refetchBroker()} title="Broker status is unavailable" />}
 
       {isHealthLoading && !health ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -186,7 +176,7 @@ export function BotControlPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Active Bot Sessions</CardDescription>
-              <CardTitle className="font-mono text-emerald-400">{health?.activeSessions ?? 0}</CardTitle>
+              <CardTitle className="font-mono text-emerald-400">{health ? health.activeSessions ?? 0 : '—'}</CardTitle>
             </CardHeader>
           </Card>
           <Card>

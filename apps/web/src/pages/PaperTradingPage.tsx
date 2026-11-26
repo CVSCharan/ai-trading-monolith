@@ -11,6 +11,8 @@ import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Skeleton, SkeletonTable } from '../components/ui/skeleton';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 
 export function PaperTradingPage() {
@@ -44,34 +46,22 @@ export function PaperTradingPage() {
     }
   };
 
-  const { data: portfolioData } = useQuery<{ portfolio: Record<string, any> | null }>({
+  const { data: portfolioData, error: portfolioError, refetch: refetchPortfolio } = useQuery<{ portfolio: Record<string, any> | null }>({
     queryKey: ['paper-portfolio'],
     refetchInterval: 5_000,
-    queryFn: async () => {
-      const res = await fetch('/api/paper/portfolio', { credentials: 'include' });
-      if (!res.ok) return { portfolio: null };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ portfolio: Record<string, any> | null }>('/api/paper/portfolio', { credentials: 'include' }),
   });
 
-  const { data: positionsData, isLoading: isPositionsLoading } = useQuery<{ positions: Array<Record<string, any>> }>({
+  const { data: positionsData, isLoading: isPositionsLoading, error: positionsError, refetch: refetchPositions } = useQuery<{ positions: Array<Record<string, any>> }>({
     queryKey: ['paper-positions'],
     refetchInterval: 5_000,
-    queryFn: async () => {
-      const res = await fetch('/api/paper/positions', { credentials: 'include' });
-      if (!res.ok) return { positions: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ positions: Array<Record<string, any>> }>('/api/paper/positions', { credentials: 'include' }),
   });
 
-  const { data: historyData, isLoading: isHistoryLoading } = useQuery<{ trades: Array<Record<string, any>> }>({
+  const { data: historyData, isLoading: isHistoryLoading, error: historyError, refetch: refetchHistory } = useQuery<{ trades: Array<Record<string, any>> }>({
     queryKey: ['paper-history'],
     refetchInterval: 10_000,
-    queryFn: async () => {
-      const res = await fetch('/api/paper/history?limit=50', { credentials: 'include' });
-      if (!res.ok) return { trades: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ trades: Array<Record<string, any>> }>('/api/paper/history?limit=50', { credentials: 'include' }),
   });
 
   const refreshAll = () => {
@@ -172,13 +162,14 @@ export function PaperTradingPage() {
       </div>
 
       {feedback && <Alert variant={feedback.variant}>{feedback.text}</Alert>}
+      {portfolioError && <QueryErrorState error={portfolioError} onRetry={() => void refetchPortfolio()} title="Portfolio balance is unavailable" />}
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-4">
             <div className="text-xs text-slate-400">Total Value</div>
             <div className="mt-1 font-mono text-xl font-semibold text-white">
-              ₹{Number(portfolio?.totalValue ?? 1_000_000).toLocaleString('en-IN')}
+              {portfolioError && !portfolio ? 'Unavailable' : portfolio ? `₹${Number(portfolio.totalValue ?? 0).toLocaleString('en-IN')}` : 'Not initialized'}
             </div>
           </CardContent>
         </Card>
@@ -186,7 +177,7 @@ export function PaperTradingPage() {
           <CardContent className="p-4">
             <div className="text-xs text-slate-400">Cash Balance</div>
             <div className="mt-1 font-mono text-xl font-semibold text-slate-200">
-              ₹{Number(portfolio?.cashBalance ?? 1_000_000).toLocaleString('en-IN')}
+              {portfolioError && !portfolio ? 'Unavailable' : portfolio ? `₹${Number(portfolio.cashBalance ?? 0).toLocaleString('en-IN')}` : 'Not initialized'}
             </div>
           </CardContent>
         </Card>
@@ -194,7 +185,7 @@ export function PaperTradingPage() {
           <CardContent className="p-4">
             <div className="text-xs text-slate-400">Daily P&amp;L</div>
             <div className={`mt-1 font-mono text-xl font-semibold ${Number(portfolio?.dailyPnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              ₹{Number(portfolio?.dailyPnl ?? 0).toFixed(2)}
+              {portfolioError && !portfolio ? 'Unavailable' : portfolio ? `₹${Number(portfolio.dailyPnl ?? 0).toFixed(2)}` : '—'}
             </div>
           </CardContent>
         </Card>
@@ -267,7 +258,8 @@ export function PaperTradingPage() {
             <CardTitle>Open Paper Positions ({positions.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            {isPositionsLoading && positions.length === 0 ? (
+            {positionsError && <QueryErrorState error={positionsError} onRetry={() => void refetchPositions()} title={positions.length ? 'Showing previously loaded positions' : 'Positions are unavailable'} />}
+            {positionsError && positions.length === 0 ? null : isPositionsLoading && positions.length === 0 ? (
               <SkeletonTable rows={3} cols={4} className="py-1" />
             ) : positions.length === 0 ? (
               <p className="text-sm text-slate-400">No open paper positions.</p>
@@ -328,7 +320,8 @@ export function PaperTradingPage() {
           <CardDescription>All completed paper trades with simulated brokerage &amp; taxes</CardDescription>
         </CardHeader>
         <CardContent>
-          {isHistoryLoading && trades.length === 0 ? (
+          {historyError && <QueryErrorState error={historyError} onRetry={() => void refetchHistory()} title={trades.length ? 'Showing previously loaded history' : 'Trade history is unavailable'} />}
+          {historyError && trades.length === 0 ? null : isHistoryLoading && trades.length === 0 ? (
             <SkeletonTable rows={6} cols={7} className="py-2" />
           ) : trades.length === 0 ? (
             <p className="text-xs text-slate-400">No closed paper trades yet.</p>

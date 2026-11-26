@@ -11,7 +11,9 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
-import { SkeletonTable } from '../components/ui/skeleton';
+import { SkeletonMetricCard, SkeletonTable } from '../components/ui/skeleton';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface OptionChainResponse {
@@ -38,14 +40,13 @@ export function OptionChainPage() {
   const [instrumentKey, setInstrumentKey] = useState(UNDERLYINGS[0].key);
   const [expiryDate, setExpiryDate] = useState(getNextThursday);
 
-  const { data, isFetching, refetch } = useQuery<OptionChainResponse>({
+  const { data, isLoading, isFetching, error, refetch } = useQuery<OptionChainResponse>({
     queryKey: ['upstox-option-chain', instrumentKey, expiryDate],
     queryFn: async () => {
       const qs = new URLSearchParams({ instrumentKey, expiryDate });
-      const res = await fetch(`/api/upstox/option-chain?${qs.toString()}`, {
+      return fetchJson<OptionChainResponse>(`/api/upstox/option-chain?${qs.toString()}`, {
         credentials: 'include',
       });
-      return res.json();
     },
     retry: false,
   });
@@ -95,6 +96,13 @@ export function OptionChainPage() {
         </div>
       </div>
 
+      {isLoading && !data ? (
+      <div className="grid gap-4 sm:grid-cols-3">
+        <SkeletonMetricCard />
+        <SkeletonMetricCard />
+        <SkeletonMetricCard />
+      </div>
+      ) : error && !data ? null : (
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -120,6 +128,7 @@ export function OptionChainPage() {
           </CardHeader>
         </Card>
       </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -131,9 +140,10 @@ export function OptionChainPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isFetching && rows.length === 0 ? (
+          {error && <QueryErrorState error={error} onRetry={() => void refetch()} title={rows.length ? 'Showing previously loaded option data' : 'Option chain is unavailable'} />}
+          {isLoading && !data ? (
             <SkeletonTable rows={10} cols={9} className="py-2" />
-          ) : rows.length === 0 ? (
+          ) : error && rows.length === 0 ? null : rows.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-800 p-6 text-center text-xs text-slate-400">
               {data?.error
                 ? 'Set UPSTOX_ANALYTICS_TOKEN in .env to stream live Option Chain data.'

@@ -11,6 +11,8 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Skeleton } from './ui/skeleton';
+import { QueryErrorState } from './ui/query-feedback';
+import { fetchJson } from '../lib/api';
 
 interface WatchlistItem {
   id: string;
@@ -33,25 +35,17 @@ export function WatchlistPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
-  const { data: watchlistData, isLoading, refetch } = useQuery<{ items: WatchlistItem[] }>({
+  const { data: watchlistData, isLoading, error, refetch } = useQuery<{ items: WatchlistItem[] }>({
     queryKey: ['watchlist'],
-    queryFn: async () => {
-      const res = await fetch('/api/watchlist', { credentials: 'include' });
-      if (!res.ok) return { items: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ items: WatchlistItem[] }>('/api/watchlist', { credentials: 'include' }),
   });
 
-  const { data: searchData } = useQuery<{ results: SearchResult[] }>({
+  const { data: searchData, error: searchError, refetch: refetchSearch } = useQuery<{ results: SearchResult[] }>({
     queryKey: ['watchlist-search', searchQuery],
     enabled: showSearch,
-    queryFn: async () => {
-      const res = await fetch(`/api/instruments/search?q=${encodeURIComponent(searchQuery)}`, {
+    queryFn: () => fetchJson<{ results: SearchResult[] }>(`/api/instruments/search?q=${encodeURIComponent(searchQuery)}`, {
         credentials: 'include',
-      });
-      if (!res.ok) return { results: [] };
-      return res.json();
-    },
+      }),
   });
 
   const addMutation = useMutation({
@@ -105,6 +99,7 @@ export function WatchlistPanel() {
         )}
       </CardHeader>
       <CardContent className="space-y-3">
+        {error && <QueryErrorState error={error} onRetry={() => void refetch()} title={items.length ? 'Showing the last loaded watchlist' : 'Watchlist is unavailable'} />}
         {showSearch && !isDemo && (
           <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
             <div className="relative">
@@ -138,9 +133,14 @@ export function WatchlistPanel() {
                   <Badge variant="info">{r.instrumentType}</Badge>
                 </button>
               ))}
-              {results.length === 0 && (
+              {searchError ? (
+                <div className="flex items-center justify-between gap-2 py-1 text-[11px] text-rose-300" role="alert">
+                  <span>Instrument search is unavailable.</span>
+                  <button type="button" onClick={() => void refetchSearch()} className="underline">Retry</button>
+                </div>
+              ) : results.length === 0 && searchQuery.trim() ? (
                 <p className="text-[11px] text-slate-500 py-1">No matching instruments found.</p>
-              )}
+              ) : null}
             </div>
           </div>
         )}
@@ -157,7 +157,7 @@ export function WatchlistPanel() {
               </div>
             ))}
           </div>
-        ) : items.length === 0 ? (
+        ) : error && items.length === 0 ? null : items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-800 p-4 text-center text-xs text-slate-400">
             No pinned symbols yet. Pin NIFTY or BANKNIFTY to monitor quick jumps.
           </div>

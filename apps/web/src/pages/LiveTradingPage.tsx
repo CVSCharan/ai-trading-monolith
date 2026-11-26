@@ -5,10 +5,13 @@ import { RoleGuard } from '../components/AuthGuard';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
+import { SkeletonTable } from '../components/ui/skeleton';
 
 interface GateItem {
   passed: boolean;
-  actual?: number;
+  actual?: number | string;
   required?: number;
   maxAllowed?: number;
 }
@@ -16,10 +19,12 @@ interface GateItem {
 interface GatesResponse {
   envEnabled: boolean;
   liveTradingEnabled: boolean;
+  liveTradingRequested?: boolean;
   gates: {
     paperTradeCount: GateItem;
     profitFactor: GateItem;
     maxDrawdownPct: GateItem;
+    operatorTwoFactor: GateItem;
     adminApproved: GateItem;
     growwCredentials: GateItem;
     envFlag: GateItem;
@@ -30,34 +35,24 @@ export function LiveTradingPage() {
   const [confirmStop, setConfirmStop] = useState(false);
   const [feedback, setFeedback] = useState('');
 
-  const { data: gatesData, refetch } = useQuery<GatesResponse>({
+  const { data: gatesData, refetch, error: gatesError, isLoading: isGatesLoading } = useQuery<GatesResponse>({
     queryKey: ['live-gates'],
     queryFn: async () => {
-      const res = await fetch('/api/live/gates', { credentials: 'include' });
-      if (!res.ok) throw new Error('Sign in required to inspect live trading gates');
-      return res.json();
+      return fetchJson<GatesResponse>('/api/live/gates', { credentials: 'include' });
     },
     retry: false,
   });
 
-  const { data: ordersData } = useQuery<{ orders: Array<Record<string, any>> }>({
+  const { data: ordersData, error: ordersError, refetch: refetchOrders, isLoading: isOrdersLoading } = useQuery<{ orders: Array<Record<string, any>> }>({
     queryKey: ['live-orders'],
     refetchInterval: 10_000,
-    queryFn: async () => {
-      const res = await fetch('/api/live/orders', { credentials: 'include' });
-      if (!res.ok) return { orders: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ orders: Array<Record<string, any>> }>('/api/live/orders', { credentials: 'include' }),
   });
 
-  const { data: positionsData } = useQuery<{ positions: Array<Record<string, any>> }>({
+  const { data: positionsData, error: positionsError, refetch: refetchPositions, isLoading: isPositionsLoading } = useQuery<{ positions: Array<Record<string, any>> }>({
     queryKey: ['live-positions'],
     refetchInterval: 10_000,
-    queryFn: async () => {
-      const res = await fetch('/api/live/positions', { credentials: 'include' });
-      if (!res.ok) return { positions: [] };
-      return res.json();
-    },
+    queryFn: () => fetchJson<{ positions: Array<Record<string, any>> }>('/api/live/positions', { credentials: 'include' }),
   });
 
   const enableMutation = useMutation({
@@ -90,8 +85,10 @@ export function LiveTradingPage() {
     },
     onSuccess: () => {
       setConfirmStop(false);
-      setFeedback('EMERGENCY STOP sent: cancelling orders, closing positions, disabling live mode.');
+      setFeedback('Emergency stop queued. Order cancellations and protected limit close orders are processing; verify broker positions are flat.');
       void refetch();
+      void refetchOrders();
+      void refetchPositions();
     },
     onError: (e: Error) => setFeedback(e.message),
   });
@@ -119,6 +116,11 @@ export function LiveTradingPage() {
           passed: gatesData.gates.adminApproved.passed,
         },
         {
+          label: 'Operator 2FA',
+          detail: gatesData.gates.operatorTwoFactor.passed ? 'Verified' : 'Not configured; live enable is disabled',
+          passed: gatesData.gates.operatorTwoFactor.passed,
+        },
+        {
           label: 'Groww Access Token',
           detail: gatesData.gates.growwCredentials.passed ? 'Valid' : 'Needs sync in Settings',
           passed: gatesData.gates.growwCredentials.passed,
@@ -139,7 +141,7 @@ export function LiveTradingPage() {
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-white">Live Trading Desk</h2>
           <p className="text-sm text-slate-400">
-            6-gate safety verification &amp; instant emergency kill-switch
+            Live execution remains gated until all safety checks pass
           </p>
         </div>
 
@@ -160,13 +162,19 @@ export function LiveTradingPage() {
           {feedback}
         </div>
       )}
+      {gatesError && <QueryErrorState error={gatesError} onRetry={() => void refetch()} title="Live trading gates could not be verified" />}
+      {gatesData?.liveTradingRequested && !gatesData.liveTradingEnabled && (
+        <div role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">
+          A previous live enable request is stored, but live execution is blocked because operator 2FA is unavailable. Use Emergency Stop to clear the stored request.
+        </div>
+      )}
 
       {confirmStop && (
         <Card className="border-rose-500/50 bg-rose-950/30">
           <CardHeader>
             <CardTitle className="text-rose-300">Confirm Immediate Emergency Stop</CardTitle>
             <CardDescription>
-              Cancels all open Groww orders, squares off all live positions at market, and disables live mode.
+              Requests cancellation of open orders and submits protected limit orders to close positions. Verify fills at the broker before treating the account as flat.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex gap-3">
@@ -188,8 +196,8 @@ export function LiveTradingPage() {
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div>
-            <CardTitle>6-Gate Live Prerequisites</CardTitle>
-            <CardDescription>All 6 checks must pass before live capital can be deployed</CardDescription>
+            <CardTitle>Live Safety Prerequisites</CardTitle>
+            <CardDescription>Every check must pass before live capital can be deployed</CardDescription>
           </div>
           <Button
             variant="primary"
@@ -201,10 +209,8 @@ export function LiveTradingPage() {
           </Button>
         </CardHeader>
         <CardContent>
-          {gateRows.length === 0 ? (
-            <p className="text-sm text-slate-400">
-              Sign in via Settings to inspect your live trading gate status.
-            </p>
+          {gatesError ? null : gateRows.length === 0 ? (
+            <p className="text-sm text-slate-400">{isGatesLoading ? 'Loading live safety checks…' : 'Sign in via Settings to inspect your live trading gate status.'}</p>
           ) : (
             <div className="divide-y divide-slate-800/80">
               {gateRows.map((row) => (
@@ -237,7 +243,8 @@ export function LiveTradingPage() {
             <CardDescription>{(positionsData?.positions ?? []).length} active position(s)</CardDescription>
           </CardHeader>
           <CardContent>
-            {(positionsData?.positions ?? []).length === 0 ? (
+            {positionsError && <QueryErrorState error={positionsError} onRetry={() => void refetchPositions()} title="Live position status unavailable" />}
+            {positionsError && !positionsData ? null : isPositionsLoading && !positionsData ? <SkeletonTable rows={3} cols={3} /> : (positionsData?.positions ?? []).length === 0 ? (
               <p className="text-xs text-slate-400">No open live positions.</p>
             ) : (
               <div className="space-y-2 text-xs">
@@ -258,7 +265,8 @@ export function LiveTradingPage() {
             <CardDescription>{(ordersData?.orders ?? []).length} recent fill(s)</CardDescription>
           </CardHeader>
           <CardContent>
-            {(ordersData?.orders ?? []).length === 0 ? (
+            {ordersError && <QueryErrorState error={ordersError} onRetry={() => void refetchOrders()} title="Live order status unavailable" />}
+            {ordersError && !ordersData ? null : isOrdersLoading && !ordersData ? <SkeletonTable rows={3} cols={3} /> : (ordersData?.orders ?? []).length === 0 ? (
               <p className="text-xs text-slate-400">No live orders placed yet.</p>
             ) : (
               <div className="space-y-2 text-xs">

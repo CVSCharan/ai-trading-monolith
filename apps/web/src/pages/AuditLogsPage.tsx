@@ -9,6 +9,8 @@ import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { SkeletonTable } from '../components/ui/skeleton';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface AuditRow {
@@ -23,15 +25,13 @@ interface AuditRow {
 export function AuditLogsPage() {
   const [actionFilter, setActionFilter] = useState('');
 
-  const { data, isLoading } = useQuery<{ logs: AuditRow[] }>({
+  const { data, isLoading, error, refetch } = useQuery<{ logs: AuditRow[] }>({
     queryKey: ['audit-logs', actionFilter],
     refetchInterval: 10_000,
     queryFn: async () => {
       const qs = new URLSearchParams({ limit: '100' });
       if (actionFilter.trim()) qs.set('action', actionFilter.trim());
-      const res = await fetch(`/api/audit?${qs.toString()}`, { credentials: 'include' });
-      if (!res.ok) return { logs: [] };
-      return res.json();
+      return fetchJson<{ logs: AuditRow[] }>(`/api/audit?${qs.toString()}`, { credentials: 'include' });
     },
   });
 
@@ -67,7 +67,10 @@ export function AuditLogsPage() {
           <CardDescription>{logs.length} event(s) loaded (IST)</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading && logs.length === 0 ? (
+          {error && logs.length > 0 && <QueryErrorState error={error} onRetry={() => void refetch()} title="Showing previously loaded audit events" />}
+          {error && logs.length === 0 ? (
+            <QueryErrorState error={error} onRetry={() => void refetch()} title="Audit events are unavailable" />
+          ) : isLoading && logs.length === 0 ? (
             <SkeletonTable rows={8} cols={4} className="py-2" />
           ) : logs.length === 0 ? (
             <p className="text-xs text-slate-400">No audit events recorded yet.</p>

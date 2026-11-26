@@ -7,6 +7,7 @@ import { useWebSocket } from '../../hooks/useWebSocket';
 import { Badge } from '../ui/badge';
 import { NAV_GROUPS } from './Sidebar';
 import { MarketClockHeaderPill, MarketAlertToastBanner } from '../MarketSessionClocks';
+import { fetchJson } from '../../lib/api';
 
 interface HealthResponse {
   status: string;
@@ -42,12 +43,10 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
     setMenuOpen(false);
   }, [location.pathname]);
 
-  const { data: health } = useQuery<HealthResponse>({
+  const { data: health, isLoading: isHealthLoading, error: healthError } = useQuery<HealthResponse>({
     queryKey: ['api-health'],
     queryFn: async () => {
-      const res = await fetch('/health');
-      if (!res.ok) throw new Error('API unreachable');
-      return res.json();
+      return fetchJson<HealthResponse>('/health');
     },
     refetchInterval: 10_000,
     retry: false,
@@ -55,11 +54,7 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
 
   const { data: broker } = useQuery<UpstoxStatusQuick>({
     queryKey: ['upstox-status'],
-    queryFn: async () => {
-      const res = await fetch('/api/upstox/status', { credentials: 'include' });
-      if (!res.ok) return {};
-      return res.json();
-    },
+    queryFn: () => fetchJson<UpstoxStatusQuick>('/api/upstox/status', { credentials: 'include' }),
   });
 
   const pageTitle = getPageTitle(location.pathname);
@@ -86,7 +81,7 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
               health?.status === 'ok' ? 'bg-emerald-400' : 'bg-amber-400'
             }`}
           />
-          <span>{health?.status === 'ok' ? 'API Online' : 'Offline'}</span>
+          <span>{isHealthLoading ? 'Checking API' : healthError ? 'API Unavailable' : health?.status === 'ok' ? 'API Online' : 'API Degraded'}</span>
         </div>
       </div>
 
@@ -110,7 +105,7 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
           </Badge>
         )}
         <Badge variant="info" className="hidden xl:inline-flex uppercase">
-          {broker?.activeDataBroker ?? 'groww'} / {broker?.activeExecutionBroker ?? 'groww'}
+          {broker?.activeDataBroker ?? 'unknown'} / {broker?.activeExecutionBroker ?? 'unknown'}
         </Badge>
         <MarketClockHeaderPill />
 

@@ -5,6 +5,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { TradeCandlestickChart, type ChartCandle } from '../components/charts/TradeCandlestickChart';
 import { Skeleton, SkeletonChart, SkeletonTable } from '../components/ui/skeleton';
 import { TradeContextPanel } from '../components/TradeContextPanel';
+import { QueryErrorState } from '../components/ui/query-feedback';
+import { fetchJson } from '../lib/api';
 
 interface TradeRecord {
   id: string;
@@ -27,16 +29,14 @@ export function TradeAuditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const { data: chartRes, isLoading, error } = useQuery<{
+  const { data: chartRes, isLoading, error, refetch } = useQuery<{
     trade: TradeRecord;
     candles: ChartCandle[];
   }>({
     queryKey: ['trade-chart', id],
     enabled: Boolean(id),
     queryFn: async () => {
-      const res = await fetch(`/api/trades/${id}/chart-data`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to load trade chart data');
-      return res.json();
+      return fetchJson<{ trade: TradeRecord; candles: ChartCandle[] }>(`/api/trades/${encodeURIComponent(id!)}/chart-data`, { credentials: 'include' });
     },
   });
 
@@ -44,9 +44,7 @@ export function TradeAuditorPage() {
     queryKey: ['trade-adjacent', id],
     enabled: Boolean(id),
     queryFn: async () => {
-      const res = await fetch(`/api/trades/${id}/adjacent`, { credentials: 'include' });
-      if (!res.ok) return { prevId: null, nextId: null };
-      return res.json();
+      return fetchJson<{ prevId: string | null; nextId: string | null }>(`/api/trades/${encodeURIComponent(id!)}/adjacent`, { credentials: 'include' });
     },
   });
 
@@ -113,7 +111,7 @@ export function TradeAuditorPage() {
           </div>
         </div>
       )}
-      {error && !isLoading && <div className="text-sm text-red-400">Sign in and select a valid trade ID to inspect.</div>}
+      {error && !isLoading && <QueryErrorState error={error} onRetry={() => void refetch()} title="Trade details are unavailable" />}
 
       {trade && (
         <div className="grid gap-4 lg:grid-cols-3">

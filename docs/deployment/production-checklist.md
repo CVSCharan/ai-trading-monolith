@@ -17,6 +17,7 @@
 
 ### `apps/engine` (Dedicated VPS with Static IP)
 - Same `DATABASE_URL`, `ENCRYPTION_MASTER_KEY`, `GROWW_*`, `UPSTOX_*`, `ACTIVE_DATA_BROKER`, `ACTIVE_EXECUTION_BROKER`
+- `EMERGENCY_LIMIT_BUFFER_PCT=1` (Bounded price protection percentage for emergency limit order square-offs)
 - If `ACTIVE_EXECUTION_BROKER=upstox`, register VPS Static IP in Upstox Developer Console and set `UPSTOX_ALGO_NAME`.
 
 ---

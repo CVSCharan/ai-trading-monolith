@@ -4,11 +4,12 @@ import { cn } from '../../lib/utils';
 export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
+      {...props}
       className={cn(
-        'animate-pulse rounded-lg bg-slate-800/70 relative overflow-hidden',
+        'animate-pulse motion-reduce:animate-none rounded-lg bg-slate-800/70 relative overflow-hidden',
         className
       )}
-      {...props}
+      aria-hidden="true"
     />
   );
 }

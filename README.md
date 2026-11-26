@@ -162,7 +162,7 @@ groww-ai-trading-monolith/
 
 - All API credentials encrypted at rest (envelope encryption)
 - TOTP secrets never logged
-- 2FA required for live trading
+- Live trading remains blocked until genuine operator 2FA enrollment and step-up verification are implemented (API and engine fail closed)
 - Server-side risk enforcement (cannot bypass from client)
 - Audit logging for all financial operations
 - Rate limiting on all endpoints

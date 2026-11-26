@@ -343,6 +343,8 @@ For each trading day (chronological):
 
 ## Live Trading Rules (Gated, Server-Enforced)
 
+> **Implementation status (2026-11-26): live enable is blocked in both API and engine until operator 2FA is implemented. This section is a target design, not a statement that live execution is production-ready. Validate all order behavior with the broker and current exchange rules before deployment.**
+
 ### Prerequisites (All Required)
 - [ ] Paper trading: **100+ trades** with positive expectancy
 - [ ] Profit factor > 1.5 on paper (validation period)
@@ -352,13 +354,12 @@ For each trading day (chronological):
 - [ ] Risk limits configured and acknowledged in UI
 - [ ] Emergency stop tested (small qty)
 
-### Execution
-- Real orders via Groww REST API
-- **Entry**: Market order (speed priority)
-- **Exit**: Limit order (price control) → **30 sec timeout** → Market fallback
-- **15:00 Square-off**: Market order (unconditional)
-- WebSocket position monitoring (Groww order updates)
-- Emergency stop: **Single API call** → Cancel all open + Market close all
+### Execution (Target Design; Requires Broker and Exchange Approval)
+- Use only order types and price protections approved for the broker, segment, and registered algo setup; do not assume market orders or market fallbacks are permitted.
+- Keep emergency close orders bounded and tracked. A submitted close order is not a fill; retain the position as open until broker updates or reconciliation confirm it is flat.
+- Run end-of-session square-off through the same durable order and fill-tracking path.
+- Emergency stop is asynchronous: it queues cancellations and protected limit close requests. Display command status and require broker-position verification before reporting the account flat.
+- Persist order IDs, idempotency keys, partial fills, and position transitions; reconcile broker state before enabling live order generation.
 
 ### Server-Side Enforcement (Cannot Bypass)
 ```typescript

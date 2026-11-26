@@ -39,11 +39,32 @@ This guide explains how **AI Trader** executes the 9/21 EMA options strategy end
 2. Verify **Engine: HEALTHY**, select your strategy, and click **Start Paper Bot**.
 3. Monitor positions & ticks in **Paper Trading** (`/paper-trading`), OI/PCR in **Option Chain** (`/option-chain`), and events in **Audit Trail** (`/audit-logs`).
 
-### Phase 4 — Live Trading (6 Mandatory Gates)
-Open **Live Trading** (`/live-trading`). Live capital stays locked until all 6 gates pass:
-1. `100+` completed paper trades
-2. Paper Profit Factor `> 1.5`
-3. Max Paper Drawdown `< 10%`
-4. Admin Approval (`liveTradingApprovedAt` set in `user_profiles`)
-5. Valid Broker Token (Groww TOTP synced, or Upstox OAuth + `X-Algo-Name`)
-6. `ENABLE_LIVE_TRADING=true` on a dedicated Static-IP VPS (`apps/engine/Dockerfile`)
+### Phase 4 — Live Trading Safeguards & Kill-Switch Architecture
+
+> [!CAUTION]
+> **LIVE TRADING STATUS: STRICTLY DISABLED (`ENABLE_LIVE_TRADING=false`)**  
+> Live capital execution is unsafe and disabled. Critical blockers remain open in the live engine path:
+> - **2FA Blocker**: `/api/live/enable` now fails closed and the engine rejects queued enable commands. A real operator TOTP enrollment and step-up verification flow is still required.
+> - **Signal Misclassification**: Strategy signals (`BUY`/`SELL` with `metadata.isExit`) must be properly mapped; cannot rely on `startsWith('ENTRY')`.
+> - **Option Pricing**: Limit orders must fetch real-time option LTP via `optionPriceLookup`, not the underlying index `spotPrice`.
+> - **Fill Confirmation**: Square-offs must wait for broker fills before marking positions closed.
+> - **Durable State & Startup Ordering**: In-memory state must be replaced by PostgreSQL persistence, and broker reconciliation must complete before market feeds and command loops start.
+> - **Regulatory Compliance**: Algo order tagging and static IP undertakings under NSE circular INSP77559 must be verified.
+
+#### 1. Live Safety Gates (Read-Only Until Operator 2FA Exists)
+The gates endpoint reports these checks. Live enable remains blocked until operator 2FA is implemented and verified:
+1. **100+ Completed Paper Trades**: Open or incomplete trades are strictly excluded (`isNotNull(exitTime)` and `isNotNull(netPnl)`).
+2. **Paper Profit Factor > 1.5**: Gross wins divided by gross losses across completed trades.
+3. **Max Drawdown < 10.00%**: Evaluated in chronological `exitTime` order across the closed equity curve from peak-to-trough.
+4. **Admin Approval**: `liveTradingApprovedAt` set in `user_profiles`.
+5. **Valid Broker Token**: Active Groww TOTP or Upstox trading session.
+6. **Environment Flag**: `ENABLE_LIVE_TRADING=true` on dedicated Static-IP host.
+7. **Operator 2FA**: Genuine user step-up verification; this is currently unavailable and therefore fails closed.
+
+#### 2. Emergency Kill-Switch & Execution Invariants
+- **Async Acknowledgment**: `POST /api/live/emergency-stop` queues an engine command and returns HTTP `202 Accepted` (`{ requested: true }`). It does not declare positions closed until broker execution is confirmed.
+- **Disarm First**: The engine disarms active strategy generators immediately to stop any new order placements before attempting broker cleanup.
+- **Cancellation & Close by Default**: Open orders are cancelled and live positions are squared off automatically by default (`cancelOrders: true, closePositions: true`).
+- **Bounded Limit Orders (`EMERGENCY_LIMIT_BUFFER_PCT`)**: Square-offs use tick-rounded marketable `LIMIT` orders with a bounded price buffer (default 1%, greater than 0% and at most 5%). This order type alone does not establish full exchange compliance; algo tagging, broker requirements, and current exchange controls still require review.
+- **Fill-Confirmed Accounting**: Position state remains open in Postgres until broker fill updates or reconciliation verify the position is flat.
+
