@@ -26,6 +26,7 @@ export const auth = betterAuth({
 
   baseURL: config.betterAuthUrl,
   secret: config.betterAuthSecret,
+  trustedOrigins: [config.frontendUrl, config.betterAuthUrl, 'http://localhost:4173'],
 });
 
 export const hasRole = (user: { role?: string }, role: string) => {
