@@ -70,9 +70,12 @@ export class TradingScheduler {
           '1m',
           from,
           to
-        )) as { candles?: Array<[number, number, number, number, number, number]> };
+        )) as {
+          candles?: Array<[number, number, number, number, number, number]>;
+          payload?: { candles?: Array<[number, number, number, number, number, number]> };
+        };
 
-        const rawCandles = resp?.candles ?? [];
+        const rawCandles = resp?.payload?.candles ?? resp?.candles ?? [];
         if (rawCandles.length === 0) continue;
 
         const mapped1m: Candle1m[] = rawCandles.map(([ts, open, high, low, close, volume]) => ({

@@ -215,13 +215,37 @@ export class GrowwClient {
     return response.json();
   }
 
+  private async safeJson(response: Response, label: string): Promise<any> {
+    const text = await response.text();
+    if (!response.ok) {
+      this.logger.warn({ status: response.status, label, body: text.slice(0, 200) }, 'Groww API non-OK response');
+      return { error: `${label} failed (${response.status})`, candles: [] };
+    }
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      this.logger.warn({ label, body: text.slice(0, 200) }, 'Groww API returned non-JSON body');
+      return { error: `${label} invalid JSON`, candles: [] };
+    }
+  }
+
   async getHistoricalCandles(symbol: string, interval: string, from: Date, to: Date): Promise<unknown> {
     const token = await this.getAccessToken();
+    const intervalMinutes = interval === '1m' ? 1 : interval === '5m' ? 5 : interval === '15m' ? 15 : 30;
+    const qs = new URLSearchParams({
+      exchange: 'NSE',
+      segment: 'CASH',
+      trading_symbol: symbol,
+      start_time: from.toISOString(),
+      end_time: to.toISOString(),
+      interval_in_minutes: String(intervalMinutes),
+    });
     const response = await fetch(
-      `${this.growwConfig.apiBaseUrl}/v1/market/candles?symbol=${symbol}&interval=${interval}&from=${from.toISOString()}&to=${to.toISOString()}`,
+      `${this.growwConfig.apiBaseUrl}/v1/historical/candle/range?${qs.toString()}`,
       { headers: { 'Authorization': `Bearer ${token}`, 'X-API-VERSION': '1.0' } }
     );
-    return response.json();
+    return this.safeJson(response, 'getHistoricalCandles');
   }
 
   /** S8-004: Historical candle range endpoint (/v1/historical/candle/range) */
