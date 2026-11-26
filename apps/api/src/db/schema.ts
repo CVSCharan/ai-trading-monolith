@@ -33,6 +33,8 @@ export const executionModeEnum = pgEnum('execution_mode', [
   'ATM_SELL',
 ]);
 
+export const userRoleEnum = pgEnum('user_role', ['SUPER_ADMIN', 'DEMO']);
+
 export const timeframeEnum = pgEnum('timeframe', ['5m', '15m', '30m']);
 
 export const signalTypeEnum = pgEnum('signal_type', ['BUY', 'SELL']);
@@ -93,6 +95,7 @@ export const userProfiles = pgTable('user_profiles', {
     "blockedPeriods": ["09:15-09:30", "15:15-15:30"],
     "shortOptionStopLossPct": 100
   }'`),
+  role: varchar('role', { length: 20 }).notNull().default('SUPER_ADMIN'),
   liveTradingEnabled: boolean('live_trading_enabled').default(false),
   liveTradingApprovedAt: timestamp('live_trading_approved_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

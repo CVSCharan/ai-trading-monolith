@@ -28,7 +28,7 @@ export const auth = betterAuth({
     additionalFields: {
       role: {
         type: 'string',
-        defaultValue: 'viewer',
+        defaultValue: 'SUPER_ADMIN',
       },
       timezone: {
         type: 'string',
@@ -49,5 +49,9 @@ export const hasRole = (user: { role?: string }, role: string) => {
   return user.role === role;
 };
 
-export const isOwner = (user: { role?: string }) => hasRole(user, 'owner');
-export const isViewer = (user: { role?: string }) => hasRole(user, 'viewer');
+export const isSuperAdmin = (user: { role?: string }) => hasRole(user, 'SUPER_ADMIN');
+export const isDemo = (user: { role?: string }) => hasRole(user, 'DEMO');
+
+// Legacy aliases
+export const isOwner = (user: { role?: string }) => isSuperAdmin(user);
+export const isViewer = (user: { role?: string }) => isDemo(user);

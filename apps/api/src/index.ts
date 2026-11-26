@@ -23,6 +23,7 @@ import { paperTradingRoutes } from './routes/paper-trading';
 import { liveTradingRoutes } from './routes/live-trading';
 import { growwRoutes } from './routes/groww';
 import { engineRoutes } from './routes/engine';
+import { authExtraRoutes } from './routes/auth-extra';
 import { auth } from './auth';
 
 const app = new Elysia()
@@ -58,6 +59,7 @@ const app = new Elysia()
   .use(liveTradingRoutes)
   .use(growwRoutes)
   .use(engineRoutes)
+  .use(authExtraRoutes)
   .all('/api/auth/*', ({ request }) => auth.handler(request))
   .get('/', () => ({ status: 'ok' }))
   .get('/health', async ({ set }) => {

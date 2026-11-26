@@ -4,10 +4,13 @@ import {
   Activity,
   BarChart3,
   LineChart,
+  Lock,
+  LogOut,
   Menu,
   Settings,
   ShieldAlert,
   TrendingUp,
+  User,
 } from 'lucide-react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
@@ -17,7 +20,12 @@ import { TradeAuditorPage } from './pages/TradeAuditorPage';
 import { PaperTradingPage } from './pages/PaperTradingPage';
 import { LiveTradingPage } from './pages/LiveTradingPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { LoginPage } from './pages/LoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { Badge } from './components/ui/badge';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthGuard } from './components/AuthGuard';
 
 interface HealthResponse {
   status: string;
@@ -26,18 +34,19 @@ interface HealthResponse {
 }
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: Activity },
-  { to: '/strategy/builder', label: 'Strategy Builder', icon: LineChart },
-  { to: '/backtest', label: 'Backtests', icon: BarChart3 },
-  { to: '/trade-auditor', label: 'Trade Auditor', icon: TrendingUp },
-  { to: '/paper-trading', label: 'Paper Trading', icon: Activity },
-  { to: '/live-trading', label: 'Live Trading', icon: ShieldAlert },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/', label: 'Dashboard', icon: Activity, demoAllowed: true },
+  { to: '/strategy/builder', label: 'Strategy Builder', icon: LineChart, demoAllowed: true },
+  { to: '/backtest', label: 'Backtests', icon: BarChart3, demoAllowed: true },
+  { to: '/trade-auditor', label: 'Trade Auditor', icon: TrendingUp, demoAllowed: true },
+  { to: '/paper-trading', label: 'Paper Trading', icon: Activity, demoAllowed: true },
+  { to: '/live-trading', label: 'Live Trading', icon: ShieldAlert, demoAllowed: false },
+  { to: '/settings', label: 'Settings', icon: Settings, demoAllowed: false },
 ];
 
-export function App() {
+function AppShell() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { user, isDemo, logout } = useAuth();
 
   const { data: health } = useQuery<HealthResponse>({
     queryKey: ['api-health'],
@@ -78,29 +87,54 @@ export function App() {
         </div>
 
         <nav className="space-y-1 flex-1">
-          {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
+          {NAV_ITEMS.map(({ to, label, icon: Icon, demoAllowed }) => {
             const active =
               to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
+            const locked = isDemo && !demoAllowed;
             return (
               <Link
                 key={to}
-                to={to}
-                title={label}
+                to={locked ? '#' : to}
+                onClick={locked ? (e) => e.preventDefault() : undefined}
+                title={locked ? `${label} — SUPER_ADMIN only` : label}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                  active
+                  locked
+                    ? 'text-slate-600 cursor-not-allowed border border-transparent'
+                    : active
                     ? 'bg-emerald-500/15 text-emerald-300 font-medium border border-emerald-500/30'
                     : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border border-transparent'
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                {!sidebarCollapsed && <span className="truncate">{label}</span>}
+                {!sidebarCollapsed && (
+                  <span className="flex-1 truncate">{label}</span>
+                )}
+                {!sidebarCollapsed && locked && <Lock className="h-3 w-3 text-slate-600" />}
               </Link>
             );
           })}
         </nav>
 
+        {/* User info + logout */}
+        {!sidebarCollapsed && user && (
+          <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-[11px]">
+            <div className="flex items-center gap-2 mb-2">
+              <User className="h-3 w-3 text-slate-400" />
+              <span className="text-slate-300 truncate">{user.email}</span>
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="flex w-full items-center gap-1.5 text-slate-500 hover:text-red-400 transition"
+            >
+              <LogOut className="h-3 w-3" />
+              Sign out
+            </button>
+          </div>
+        )}
+
         {!sidebarCollapsed && (
-          <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-[11px] text-slate-400">
+          <div className="mt-2 rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-[11px] text-slate-400">
             <div className="font-medium text-slate-200">9/21 EMA Options</div>
             <div className="mt-0.5">15:00 IST Square-Off Active</div>
           </div>
@@ -120,6 +154,11 @@ export function App() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {isDemo && (
+              <Badge variant="warning" className="animate-pulse">
+                DEMO MODE
+              </Badge>
+            )}
             <Badge variant="warning">PAPER DEFAULT</Badge>
             <Badge variant="info">IST (UTC+5:30)</Badge>
           </div>
@@ -139,6 +178,29 @@ export function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        {/* Protected shell */}
+        <Route
+          path="/*"
+          element={
+            <AuthGuard>
+              <AppShell />
+            </AuthGuard>
+          }
+        />
+      </Routes>
+    </AuthProvider>
   );
 }
 

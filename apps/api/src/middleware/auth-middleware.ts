@@ -44,3 +44,33 @@ export function requireAuth(userId: string | null, set: { status?: number | stri
   }
   return true;
 }
+
+/**
+ * Guards a route to SUPER_ADMIN role only.
+ * Usage: if (!requireRole(userRole, 'SUPER_ADMIN', set)) return { error: 'Forbidden' };
+ */
+export function requireRole(
+  userRole: string | null,
+  role: 'SUPER_ADMIN',
+  set: { status?: number | string },
+): boolean {
+  if (userRole !== role) {
+    set.status = 403;
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Returns true if the authenticated user is SUPER_ADMIN.
+ */
+export function isSuperAdmin(userRole: string | null): boolean {
+  return userRole === 'SUPER_ADMIN';
+}
+
+/**
+ * Returns true if the authenticated user is in DEMO mode (read-only).
+ */
+export function isDemoUser(userRole: string | null): boolean {
+  return userRole === 'DEMO';
+}

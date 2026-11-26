@@ -9,9 +9,7 @@
 
 | Ticket | Title | Sprint | Owner | ETA |
 |--------|-------|--------|-------|-----|
-| [S0-002](sprints/sprint-immediate.md#S0-002) | Enable GitHub Actions CI | Immediate | @dev | 2026-11-26 |
-| [S0-003](sprints/sprint-immediate.md#S0-003) | Verify UTC+EDT matrix passes | Immediate | @dev | 2026-11-26 |
-| [S0-004](sprints/sprint-immediate.md#S0-004) | Set branch protection (CI required) | Immediate | @dev | 2026-11-26 |
+| [S9-001..S9-011](sprints/sprint-9.md) | Auth, RBAC & Demo Account | Sprint 9 | @dev | 2026-11-28 |
 
 ---
 

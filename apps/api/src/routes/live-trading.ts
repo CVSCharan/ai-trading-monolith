@@ -11,7 +11,7 @@ import {
   paperTrades,
   userProfiles,
 } from '../db/schema';
-import { authPlugin, requireAuth } from '../middleware/auth-middleware';
+import { authPlugin, requireAuth, requireRole } from '../middleware/auth-middleware';
 import { createRateLimitPlugin } from '../middleware/rate-limit-middleware';
 import { logAuditEvent } from '../middleware/audit-middleware';
 
@@ -83,8 +83,9 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
       },
     };
   })
-  .post('/enable', async ({ userId, set }) => {
+  .post('/enable', async ({ userId, userRole, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+    if (!requireRole(userRole, 'SUPER_ADMIN', set)) return { error: 'Forbidden: SUPER_ADMIN only' };
 
     if (process.env['ENABLE_LIVE_TRADING'] !== 'true') {
       set.status = 403;
@@ -159,8 +160,9 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
 
     return { enabled: true };
   })
-  .post('/emergency-stop', async ({ body, userId, set }) => {
+  .post('/emergency-stop', async ({ body, userId, userRole, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+    if (!requireRole(userRole, 'SUPER_ADMIN', set)) return { error: 'Forbidden: SUPER_ADMIN only' };
 
     const parsed = EmergencyStopSchema.safeParse(body ?? {});
     const reason = parsed.success ? parsed.data.reason : 'Manual emergency stop';
