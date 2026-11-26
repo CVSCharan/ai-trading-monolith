@@ -85,4 +85,87 @@ describe('UpstoxClient (S10-003)', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  test('supports getQuote, getRegisteredStaticIps, placeOrder, cancelOrder, getPositions, getMargins, and error handling', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock(async (url: string) => {
+      if (url.includes('/v2/market-quote/quotes')) {
+        return new Response(
+          JSON.stringify({
+            status: 'success',
+            data: {
+              'NSE_INDEX|Nifty 50': {
+                last_price: 24250,
+                ohlc: { open: 24100, high: 24300, low: 24050, close: 24200 },
+                volume: 50000,
+                oi: 1000,
+              },
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/user/ip')) {
+        return new Response(
+          JSON.stringify({ status: 'success', data: { primary_ip: '1.2.3.4', secondary_ip: '5.6.7.8' } }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/v3/order/place')) {
+        return new Response(JSON.stringify({ status: 'success', data: { order_id: 'UPX-999' } }), { status: 200 });
+      }
+      if (url.includes('/v2/order/cancel')) {
+        return new Response(JSON.stringify({ status: 'success', data: {} }), { status: 200 });
+      }
+      if (url.includes('/v2/portfolio/short-term-positions')) {
+        return new Response(
+          JSON.stringify({
+            status: 'success',
+            data: [{ tradingsymbol: 'NIFTY24NOV24000CE', quantity: 75, average_price: 120, last_price: 145, pnl: 1875 }],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('/v2/user/get-funds-and-margin')) {
+        return new Response(
+          JSON.stringify({ status: 'success', data: { equity: { available_margin: 250000, used_margin: 45000 } } }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ status: 'error', errors: [{ message: 'Bad request' }] }), { status: 400 });
+    }) as unknown as typeof fetch;
+
+    try {
+      const client = new UpstoxClient({
+        analyticsToken: 'analytics-tok',
+        accessToken: 'trade-tok',
+        algoName: 'AI_TRADER_9_21',
+      });
+
+      const quotes = await client.getQuote(['NSE_INDEX|Nifty 50']);
+      expect(quotes['NSE_INDEX|Nifty 50']?.ltp).toBe(24250);
+
+      const ips = await client.getRegisteredStaticIps();
+      expect(ips.primaryIp).toBe('1.2.3.4');
+
+      const orderRes = await client.placeOrder({
+        symbol: 'NIFTY24NOV24000CE',
+        side: 'BUY',
+        quantity: 75,
+        orderType: 'MARKET',
+      });
+      expect(orderRes.orderId).toBe('UPX-999');
+      expect(orderRes.status).toBe('PENDING');
+
+      expect(await client.cancelOrder('UPX-999')).toBe(true);
+
+      const positions = await client.getPositions();
+      expect(positions[0]?.pnl).toBe(1875);
+
+      const margins = await client.getMargins();
+      expect(margins.availableMargin).toBe(250000);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

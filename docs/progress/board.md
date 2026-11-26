@@ -25,7 +25,7 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S2-009](sprints/sprint-2.md#S2-009) | Verify ≥90% coverage gate (core modules ≥97%, overall 88.55% incl. shared/example) | 🟡 | 2026-12-06 |
+| *(All Sprint 2 tickets complete!)* | — | — | — |
 
 ---
 
@@ -131,6 +131,7 @@
 | S11-001..S11-004 | Engine `BrokerRouter` (`GrowwBrokerAdapter` + `UpstoxClient`), `UpstoxMarketDataFeed` WS v3, & `OptionChainPage` UI | 2026-11-26 |
 | S0-002..S0-003 | Fix CI Secret Scan & verify UTC + America/New_York test matrix passes | 2026-11-26 |
 | S0-004 | Enable branch protection on `main` requiring all 5 CI status checks | 2026-11-26 |
+| S2-009 | Coverage gate verified: `upstox-client` 100%, `resample` 99.17%, core strategy modules ≥97% (67/67 tests) | 2026-11-26 |
 
 ---
 
