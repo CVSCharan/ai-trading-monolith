@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, ShieldAlert, XCircle } from 'lucide-react';
+import { RoleGuard } from '../components/AuthGuard';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -37,6 +38,26 @@ export function LiveTradingPage() {
       return res.json();
     },
     retry: false,
+  });
+
+  const { data: ordersData } = useQuery<{ orders: Array<Record<string, any>> }>({
+    queryKey: ['live-orders'],
+    refetchInterval: 10_000,
+    queryFn: async () => {
+      const res = await fetch('/api/live/orders', { credentials: 'include' });
+      if (!res.ok) return { orders: [] };
+      return res.json();
+    },
+  });
+
+  const { data: positionsData } = useQuery<{ positions: Array<Record<string, any>> }>({
+    queryKey: ['live-positions'],
+    refetchInterval: 10_000,
+    queryFn: async () => {
+      const res = await fetch('/api/live/positions', { credentials: 'include' });
+      if (!res.ok) return { positions: [] };
+      return res.json();
+    },
   });
 
   const enableMutation = useMutation({
@@ -163,6 +184,7 @@ export function LiveTradingPage() {
         </Card>
       )}
 
+      <RoleGuard role="SUPER_ADMIN" message="Live trading controls are restricted to SUPER_ADMIN.">
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div>
@@ -206,6 +228,51 @@ export function LiveTradingPage() {
           )}
         </CardContent>
       </Card>
+      </RoleGuard>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Open Live Positions</CardTitle>
+            <CardDescription>{(positionsData?.positions ?? []).length} active position(s)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(positionsData?.positions ?? []).length === 0 ? (
+              <p className="text-xs text-slate-400">No open live positions.</p>
+            ) : (
+              <div className="space-y-2 text-xs">
+                {positionsData?.positions.map((pos, idx) => (
+                  <div key={pos['id'] ?? idx} className="flex justify-between rounded border border-slate-800 px-3 py-2 font-mono">
+                    <span>{pos['optionSymbol']} ({pos['quantity']})</span>
+                    <span>₹{Number(pos['unrealizedPnl'] ?? 0).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Live Orders</CardTitle>
+            <CardDescription>{(ordersData?.orders ?? []).length} recent fill(s)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(ordersData?.orders ?? []).length === 0 ? (
+              <p className="text-xs text-slate-400">No live orders placed yet.</p>
+            ) : (
+              <div className="space-y-2 text-xs">
+                {ordersData?.orders.slice(0, 10).map((ord, idx) => (
+                  <div key={ord['id'] ?? idx} className="flex justify-between rounded border border-slate-800 px-3 py-2 font-mono">
+                    <span>{ord['optionSymbol']} · {ord['side']} · {ord['quantity']}</span>
+                    <Badge variant={ord['status'] === 'COMPLETE' ? 'success' : 'info'}>{ord['status']}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

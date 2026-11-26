@@ -132,6 +132,8 @@
 | S0-002..S0-003 | Fix CI Secret Scan & verify UTC + America/New_York test matrix passes | 2026-11-26 |
 | S0-004 | Enable branch protection on `main` requiring all 5 CI status checks | 2026-11-26 |
 | S2-009 | Coverage gate verified: `upstox-client` 100%, `resample` 99.17%, core strategy modules ≥97% (67/67 tests) | 2026-11-26 |
+| S6-011 / S6-012 | Add `scripts/smoke-test.ts`, `apps/api/Dockerfile`, `production-checklist.md` & verify 1-year backtest (313ms) | 2026-11-26 |
+| S12-001..S12-005 | Bot Control Center (`/bot`), Strategy Lifecycle Actions, Live Orders/Positions, Audit Trail (`/audit-logs`), & Editable Risk Guardrails | 2026-11-26 |
 
 ---
 

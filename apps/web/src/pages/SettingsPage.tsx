@@ -34,6 +34,56 @@ export function SettingsPage() {
   const [totpSecret, setTotpSecret] = useState('');
   const [showManualOverride, setShowManualOverride] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  const [maxDailyLossPct, setMaxDailyLossPct] = useState(2);
+  const [maxPositions, setMaxPositions] = useState(3);
+  const [perTradeRiskPct, setPerTradeRiskPct] = useState(1);
+  const [shortOptionStopLossPct, setShortOptionStopLossPct] = useState(100);
+
+  useQuery({
+    queryKey: ['user-profile'],
+    queryFn: async () => {
+      const res = await fetch('/api/user/profile', { credentials: 'include' });
+      if (!res.ok) return null;
+      const json = (await res.json()) as {
+        profile?: {
+          riskLimits?: {
+            maxDailyLossPct?: number;
+            maxPositions?: number;
+            perTradeRiskPct?: number;
+            shortOptionStopLossPct?: number;
+          };
+        };
+      };
+      const rl = json.profile?.riskLimits;
+      if (rl) {
+        if (rl.maxDailyLossPct !== undefined) setMaxDailyLossPct(rl.maxDailyLossPct);
+        if (rl.maxPositions !== undefined) setMaxPositions(rl.maxPositions);
+        if (rl.perTradeRiskPct !== undefined) setPerTradeRiskPct(rl.perTradeRiskPct);
+        if (rl.shortOptionStopLossPct !== undefined) setShortOptionStopLossPct(rl.shortOptionStopLossPct);
+      }
+      return json;
+    },
+  });
+
+  const saveRiskMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/user/risk-limits', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          maxDailyLossPct,
+          maxPositions,
+          perTradeRiskPct,
+          shortOptionStopLossPct,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to update risk limits');
+      return res.json();
+    },
+    onSuccess: () => setStatusMsg('Risk guardrails saved & audit-logged.'),
+    onError: (e: Error) => setStatusMsg(e.message),
+  });
 
   const { data: growwStatus, refetch } = useQuery<GrowwStatusResponse>({
     queryKey: ['groww-status'],
@@ -306,26 +356,59 @@ export function SettingsPage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Risk &amp; Execution Guardrails</CardTitle>
-          <CardDescription>Server-enforced limits applied to all Paper &amp; Live 9/21 EMA sessions</CardDescription>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Risk &amp; Execution Guardrails</CardTitle>
+            <CardDescription>Server-enforced limits applied to all Paper &amp; Live 9/21 EMA sessions</CardDescription>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => saveRiskMutation.mutate()}
+            disabled={saveRiskMutation.isPending}
+          >
+            {saveRiskMutation.isPending ? 'Saving…' : 'Save Risk Limits'}
+          </Button>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs">
-          <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-            <div className="text-slate-400">Default Paper Capital</div>
-            <div className="mt-1 font-mono text-base font-semibold text-white">₹10,00,000</div>
-          </div>
-          <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-            <div className="text-slate-400">Max Daily Loss</div>
-            <div className="mt-1 font-mono text-base font-semibold text-rose-400">1.5% / day</div>
-          </div>
-          <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-            <div className="text-slate-400">Entry Window (IST)</div>
-            <div className="mt-1 font-mono text-base font-semibold text-sky-400">09:30 – 14:30</div>
-          </div>
+          <label className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 block">
+            <span className="text-slate-400">Max Daily Loss (%)</span>
+            <input
+              type="number"
+              step="0.1"
+              min={0.1}
+              max={20}
+              value={maxDailyLossPct}
+              onChange={(e) => setMaxDailyLossPct(Number(e.target.value))}
+              className="mt-1.5 w-full rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 font-mono text-sm font-semibold text-rose-400 focus:border-sky-500 focus:outline-none"
+            />
+          </label>
+          <label className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 block">
+            <span className="text-slate-400">Max Open Positions</span>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={maxPositions}
+              onChange={(e) => setMaxPositions(Number(e.target.value))}
+              className="mt-1.5 w-full rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 font-mono text-sm font-semibold text-white focus:border-sky-500 focus:outline-none"
+            />
+          </label>
+          <label className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 block">
+            <span className="text-slate-400">Per-Trade Risk (%)</span>
+            <input
+              type="number"
+              step="0.1"
+              min={0.1}
+              max={10}
+              value={perTradeRiskPct}
+              onChange={(e) => setPerTradeRiskPct(Number(e.target.value))}
+              className="mt-1.5 w-full rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 font-mono text-sm font-semibold text-sky-400 focus:border-sky-500 focus:outline-none"
+            />
+          </label>
           <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
             <div className="text-slate-400">Unconditional Square-Off</div>
-            <div className="mt-1 flex items-center gap-1.5 font-mono text-base font-semibold text-emerald-400">
+            <div className="mt-2 flex items-center gap-1.5 font-mono text-base font-semibold text-emerald-400">
               <CheckCircle2 className="h-4 w-4" /> 15:00 IST
             </div>
           </div>

@@ -3,11 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
   BarChart3,
+  Bot,
   Layers,
   LineChart,
   Lock,
   LogOut,
   Menu,
+  ScrollText,
   Settings,
   ShieldAlert,
   TrendingUp,
@@ -15,6 +17,8 @@ import {
 } from 'lucide-react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
+import { BotControlPage } from './pages/BotControlPage';
+import { AuditLogsPage } from './pages/AuditLogsPage';
 import { OptionChainPage } from './pages/OptionChainPage';
 import { StrategyBuilderPage } from './pages/StrategyBuilderPage';
 import { BacktestResultsPage } from './pages/BacktestResultsPage';
@@ -37,12 +41,14 @@ interface HealthResponse {
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: Activity, demoAllowed: true },
+  { to: '/bot', label: 'Bot Control', icon: Bot, demoAllowed: true },
   { to: '/option-chain', label: 'Option Chain', icon: Layers, demoAllowed: true },
   { to: '/strategy/builder', label: 'Strategy Builder', icon: LineChart, demoAllowed: true },
   { to: '/backtest', label: 'Backtests', icon: BarChart3, demoAllowed: true },
   { to: '/trade-auditor', label: 'Trade Auditor', icon: TrendingUp, demoAllowed: true },
   { to: '/paper-trading', label: 'Paper Trading', icon: Activity, demoAllowed: true },
   { to: '/live-trading', label: 'Live Trading', icon: ShieldAlert, demoAllowed: false },
+  { to: '/audit-logs', label: 'Audit Trail', icon: ScrollText, demoAllowed: true },
   { to: '/settings', label: 'Settings', icon: Settings, demoAllowed: false },
 ];
 
@@ -170,7 +176,9 @@ function AppShell() {
         <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
           <Routes>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/bot" element={<BotControlPage />} />
             <Route path="/option-chain" element={<OptionChainPage />} />
+            <Route path="/audit-logs" element={<AuditLogsPage />} />
             <Route path="/strategy/builder" element={<StrategyBuilderPage />} />
             <Route path="/backtest" element={<BacktestResultsPage />} />
             <Route path="/trade-auditor" element={<TradeAuditorPage />} />

@@ -151,11 +151,77 @@ export function StrategyBuilderPage() {
         ) : (
           <div className="space-y-2">
             {data?.strategies.map((s) => (
-              <div key={s.id} className="flex items-center justify-between rounded-lg border border-slate-800 px-4 py-2 text-sm">
-                <span className="font-medium text-white">{s.name}</span>
-                <span className="text-slate-400">
-                  {s.underlyingSymbol} · {s.timeframe} · {s.executionMode} · {s.lots} lot(s)
-                </span>
+              <div
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 px-4 py-2.5 text-sm"
+              >
+                <div>
+                  <span className="font-medium text-white">{s.name}</span>
+                  <span className="ml-2 text-xs text-slate-400">
+                    {s.underlyingSymbol} · {s.timeframe} · {s.executionMode} · {s.lots} lot(s)
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetch(`/api/strategies/${s.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ isActive: !s.isActive }),
+                      });
+                      void qc.invalidateQueries({ queryKey: ['strategies'] });
+                    }}
+                    className={`rounded px-2.5 py-1 text-xs font-medium ${
+                      s.isActive
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {s.isActive ? 'Active' : 'Paused'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetch('/api/paper/start', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ strategyId: s.id }),
+                      });
+                    }}
+                    className="rounded bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-300 hover:bg-sky-500/30"
+                  >
+                    Launch Bot
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetch(`/api/strategies/${s.id}/clone`, {
+                        method: 'POST',
+                        credentials: 'include',
+                      });
+                      void qc.invalidateQueries({ queryKey: ['strategies'] });
+                    }}
+                    className="rounded bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700"
+                  >
+                    Clone
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetch(`/api/strategies/${s.id}`, {
+                        method: 'DELETE',
+                        credentials: 'include',
+                      });
+                      void qc.invalidateQueries({ queryKey: ['strategies'] });
+                    }}
+                    className="rounded bg-rose-500/15 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-500/25"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             ))}
           </div>
