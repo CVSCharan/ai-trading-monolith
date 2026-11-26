@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Bot, ChevronDown, LogOut, Menu, Settings, UserCircle2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useWebSocket } from '../../hooks/useWebSocket';
 import { Badge } from '../ui/badge';
 import { NAV_GROUPS } from './Sidebar';
 
@@ -31,6 +32,10 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
   const location = useLocation();
   const { user, isDemo, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { events } = useWebSocket(['ticks']);
+  const latestTick = events.find((e) => e.channel === 'ticks')?.data as
+    | { instrumentKey?: string; ltp?: number }
+    | undefined;
 
   useEffect(() => {
     setMenuOpen(false);
@@ -83,6 +88,11 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
       </div>
 
       <div className="flex items-center gap-2">
+        {latestTick?.ltp !== undefined && (
+          <Badge variant="success" className="hidden lg:inline-flex font-mono tabular-nums">
+            {latestTick.instrumentKey?.includes('Bank') ? 'BANKNIFTY' : 'NIFTY'}: ₹{latestTick.ltp.toLocaleString('en-IN')}
+          </Badge>
+        )}
         <Link
           to="/bot"
           className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 transition-colors"

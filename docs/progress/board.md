@@ -137,6 +137,7 @@
 | S13-001..S13-004 | Floating Glass Sidebar (`Sidebar`, `Header`, `AppShell`), Global CSS Viewport Lock & `shadcn/ui` Input/Select/Alert/Skeleton | 2026-11-26 |
 | S14-001..S14-004 | Rolling Session Rotation, Max 3 Concurrent Devices, `logout-all`, `change-password`, `08:45 IST` Token Refresh & `ProfilePage` | 2026-11-26 |
 | S7-008 | Chrome DevTools visual & Lighthouse audit complete (dropdown auto-close, WCAG AA contrast, copy fixes) | 2026-11-26 |
+| S15-001..S15-005 | `LiveBarAggregator`, NSE Holiday & Expiry Guard, Telegram/Webhook Alerts, Header Live Ticker & Backtest → Bot Promote | 2026-11-26 |
 
 ---
 

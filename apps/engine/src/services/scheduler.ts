@@ -5,6 +5,7 @@ import { getISTDateString } from '@groww-trading/shared';
 import { resampleCandles, type Candle1m } from '@groww-trading/strategy-core';
 import { candles1m, candlesResampled, instruments } from '../../../api/src/db/schema';
 import type { GrowwClient } from './groww-client';
+import { isNSETradingDay } from './nse-holidays';
 
 export class TradingScheduler {
   private logger: pino.Logger;
@@ -64,6 +65,10 @@ export class TradingScheduler {
   }
 
   async refreshBrokerTokens(): Promise<void> {
+    if (!isNSETradingDay(new Date())) {
+      this.logger.info('NSE holiday/weekend — skipping pre-market token refresh');
+      return;
+    }
     try {
       await this.growwClient.initialize();
       this.logger.info('Pre-market Groww TOTP token refreshed successfully');
@@ -73,6 +78,10 @@ export class TradingScheduler {
   }
 
   async downloadAndResampleToday(): Promise<void> {
+    if (!isNSETradingDay(new Date())) {
+      this.logger.info('NSE holiday/weekend — skipping daily candle download');
+      return;
+    }
     const todayStr = getISTDateString(new Date());
     const from = new Date(`${todayStr}T03:45:00.000Z`); // 09:15 IST
     const to = new Date(`${todayStr}T10:00:00.000Z`);   // 15:30 IST
