@@ -13,6 +13,7 @@ import { authPlugin } from '../middleware/auth-middleware';
 import { createRateLimitPlugin } from '../middleware/rate-limit-middleware';
 import { logger } from '../logger';
 import { eq } from 'drizzle-orm';
+import { hashPassword } from 'better-auth/crypto';
 import { config } from '../config';
 
 // ── JWT helpers for password reset ───────────────────────────────
@@ -173,7 +174,7 @@ export const authExtraRoutes = new Elysia({ prefix: '/api/auth' })
         return { error: 'Password reset is not available for the demo account.' };
       }
 
-      const hashedPw = await Bun.password.hash(password, { algorithm: 'bcrypt', cost: 12 });
+      const hashedPw = await hashPassword(password);
 
       // Update the credential record (Better Auth credential provider)
       await db

@@ -8,6 +8,7 @@ import { db } from './index';
 import { instruments, costConfigs, userProfiles, paperPortfolios, paperTrades } from './schema';
 import { user, account } from './better-auth-schema';
 import { eq, sql } from 'drizzle-orm';
+import { hashPassword as betterAuthHashPassword } from 'better-auth/crypto';
 import { logger } from '../logger';
 
 const sampleInstruments = [
@@ -146,11 +147,10 @@ function buildDemoTrades(portfolioId: string) {
 }
 
 // ============================================
-// Hash password using Better Auth's bcrypt
+// Hash password using Better Auth scrypt format (salt:key)
 // ============================================
 async function hashPassword(plain: string): Promise<string> {
-  // Use Bun's built-in bcrypt
-  return Bun.password.hash(plain, { algorithm: 'bcrypt', cost: 12 });
+  return betterAuthHashPassword(plain);
 }
 
 // ============================================
@@ -167,7 +167,22 @@ async function upsertUser(opts: {
 
   if (existing.length > 0) {
     userId = existing[0].id;
-    logger.info({ email: opts.email }, 'User already exists, skipping insert');
+    // Upgrade legacy non-Better-Auth (bcrypt) hashes to Better Auth scrypt salt:key format
+    const [existingAcc] = await db
+      .select({ id: account.id, password: account.password })
+      .from(account)
+      .where(eq(account.userId, userId))
+      .limit(1);
+    if (existingAcc && (!existingAcc.password || !existingAcc.password.includes(':'))) {
+      const hashedPw = await hashPassword(opts.password);
+      await db
+        .update(account)
+        .set({ password: hashedPw, updatedAt: new Date() })
+        .where(eq(account.id, existingAcc.id));
+      logger.info({ email: opts.email }, 'Upgraded password hash to Better Auth format');
+    } else {
+      logger.info({ email: opts.email }, 'User already exists, skipping insert');
+    }
   } else {
     userId = crypto.randomUUID();
     const hashedPw = await hashPassword(opts.password);
