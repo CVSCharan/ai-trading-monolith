@@ -124,7 +124,7 @@ export function DashboardPage() {
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-white">AI Trader Command Center</h2>
           <p className="text-sm text-slate-400">
-            Groww 9/21 EMA Options Portfolio · Intraday IST (09:30–15:00)
+            Multi-Broker Options &amp; Algo Portfolio · Intraday IST (09:30–15:00)
           </p>
         </div>
         <div className="flex items-center gap-2">

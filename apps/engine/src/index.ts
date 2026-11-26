@@ -69,18 +69,25 @@ const paperEngine = new PaperTradingEngine(db, logger, growwClient, marketData);
 const liveEngine = new LiveTradingEngine(db, logger, growwClient);
 const scheduler = new TradingScheduler(db, logger, growwClient, alerting, wsManager);
 
+// Main engine loop state
+let isShuttingDown = false;
+let engineReady = false;
+
 // Elysia app for health checks and metrics
 const app = new Elysia()
   .use(cors())
   .use(jwt({ secret: config.jwtSecret }))
   .get('/health', () => ({ status: 'ok', timestamp: new Date().toISOString() }))
+  .get('/ready', ({ set }) => {
+    set.status = engineReady ? 200 : 503;
+    return { ready: engineReady };
+  })
   .get('/metrics', () => ({ /* basic metrics */ }))
   .listen(config.port);
 
 logger.info({ port: config.port }, 'Engine HTTP server started');
 
 // Main engine loop
-let isShuttingDown = false;
 const HEARTBEAT_INTERVAL = 10000; // 10 seconds
 const COMMAND_POLL_INTERVAL = 2000; // 2 seconds
 const STATE_PUBLISH_INTERVAL = 5000; // 5 seconds
@@ -93,6 +100,29 @@ async function startEngine() {
     await growwClient.initialize();
   } catch (err) {
     logger.warn({ err }, 'Groww credentials not initialized — live Groww calls disabled until configured');
+    if (process.env['ENABLE_LIVE_TRADING'] === 'true') {
+      throw new Error('Live trading requires successful broker authentication at startup', { cause: err });
+    }
+  }
+
+  // Reconcile persisted and broker state before opening feeds, starting the
+  // scheduler, or accepting commands. A reconciliation error must keep this
+  // process unready rather than allowing trading against unknown state.
+  if (process.env['ENABLE_LIVE_TRADING'] === 'true' && !config.reconcileOnStart) {
+    throw new Error('Live trading requires startup reconciliation to be enabled');
+  }
+  if (config.reconcileOnStart) {
+    const activeUsers = await db
+      .selectDistinct({ userId: engineCommands.userId })
+      .from(engineCommands);
+    for (const { userId } of activeUsers) {
+      if (!userId) continue;
+      await reconciliation.reconcileOnStart(userId, 'paper', growwClient);
+      if (process.env['ENABLE_LIVE_TRADING'] === 'true') {
+        await reconciliation.reconcileOnStart(userId, 'live', growwClient);
+      }
+    }
+    logger.info({ reconciledUsers: activeUsers.length }, 'Startup reconciliation complete');
   }
 
   // Forward live market ticks to WebSocket subscribers
@@ -192,28 +222,11 @@ async function startEngine() {
   // Start state publishing
   setInterval(publishState, STATE_PUBLISH_INTERVAL);
 
+  engineReady = true;
+
   // Handle graceful shutdown
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
-
-  // Crash recovery & startup reconciliation (S4-011)
-  if (config.reconcileOnStart) {
-    try {
-      const activeUsers = await db
-        .selectDistinct({ userId: engineCommands.userId })
-        .from(engineCommands);
-      for (const { userId } of activeUsers) {
-        if (!userId) continue;
-        await reconciliation.reconcileOnStart(userId, 'paper', growwClient);
-        if (process.env['ENABLE_LIVE_TRADING'] === 'true') {
-          await reconciliation.reconcileOnStart(userId, 'live', growwClient);
-        }
-      }
-      logger.info({ reconciledUsers: activeUsers.length }, 'Startup reconciliation complete');
-    } catch (err) {
-      logger.error({ err }, 'Startup reconciliation failed');
-    }
-  }
 
   logger.info('Trading engine started');
 }
@@ -275,6 +288,7 @@ async function publishState() {
 async function shutdown() {
   if (isShuttingDown) return;
   isShuttingDown = true;
+  engineReady = false;
 
   logger.info('Shutting down trading engine...');
 

@@ -1,7 +1,7 @@
 {
-  "name": "AI Trader — Groww Options Platform",
+  "name": "AI Trader — Quantitative Options & Algo Terminal",
   "short_name": "AI Trader",
-  "description": "Automated 9/21 EMA Crossover NIFTY/BANKNIFTY Options Trading Terminal integrated with Groww",
+  "description": "Multi-Broker Algorithmic Options Trading Terminal supporting Groww, Upstox, NSE & MCX",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",

@@ -10,8 +10,14 @@
       "persistent": true
     },
     "test": {
-      "outputs": ["coverage/**"],
+      "outputs": [],
       "dependsOn": []
+    },
+    "db:seed": {
+      "cache": false
+    },
+    "db:reset": {
+      "cache": false
     },
     "lint": {},
     "typecheck": {

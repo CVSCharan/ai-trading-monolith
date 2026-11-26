@@ -330,3 +330,16 @@ export async function seed(): Promise<void> {
 
   logger.info('Seed complete ✅');
 }
+
+// Enable standalone CLI execution (e.g. `bun run src/db/seed.ts` or `bun run db:seed`)
+if (import.meta.main || process.argv[1]?.includes('seed.ts')) {
+  seed()
+    .then(() => {
+      logger.info('Database seed finished successfully ✅');
+      process.exit(0);
+    })
+    .catch((err) => {
+      logger.error({ err }, 'Database seed execution failed');
+      process.exit(1);
+    });
+}

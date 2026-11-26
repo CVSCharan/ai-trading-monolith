@@ -18,6 +18,7 @@
     "db:push": "turbo run db:push --filter=@groww-trading/api",
     "db:studio": "turbo run db:studio --filter=@groww-trading/api",
     "db:seed": "turbo run db:seed --filter=@groww-trading/api",
+    "db:reset": "turbo run db:reset --filter=@groww-trading/api",
     "prepare": "husky install"
   },
   "devDependencies": {

@@ -82,7 +82,7 @@ export function Sidebar({
           {!collapsed && (
             <div className="truncate">
               <div className="text-sm font-bold tracking-tight text-white">AI Trader</div>
-              <div className="text-[11px] text-slate-400">Options Bot Desk</div>
+              <div className="text-[11px] text-slate-400">Quantitative Trading Desk</div>
             </div>
           )}
         </Link>

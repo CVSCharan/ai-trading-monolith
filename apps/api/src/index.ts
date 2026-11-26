@@ -93,10 +93,13 @@ const app = new Elysia()
 
 logger.info({ port: config.port, url: app.server?.hostname }, 'API app started');
 
-// Seed database & start background services on startup
-seed().catch((err) => {
-  logger.error({ err }, 'Database seed failed');
-});
+// Only seed database on startup if explicitly requested via SEED_ON_START=true
+if (process.env['SEED_ON_START'] === 'true') {
+  logger.info('SEED_ON_START=true detected; executing database seed...');
+  seed().catch((err) => {
+    logger.error({ err }, 'Database seed failed');
+  });
+}
 void wsManager.startPostgresBridge();
 startBacktestWorker();
 

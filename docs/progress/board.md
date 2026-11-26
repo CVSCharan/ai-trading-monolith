@@ -9,9 +9,13 @@
 
 | Ticket | Title | Sprint | Owner | ETA |
 |--------|-------|--------|-------|-----|
+| S19-006 | Signal mapping: core path hardened; durable fills and reversal lifecycle still pending | Sprint 19 | Team | 2026-12-10 |
+| S19-007 | Live option quotes: callback exists; production quote source and instrument mapping are not wired | Sprint 19 | Team | 2026-12-10 |
+| S19-008 | Square-off fills: mocked state handling exists; broker update stream and durable state pending | Sprint 19 | Team | 2026-12-10 |
 | S19-005 | Live 2FA: Fail-closed API/engine mitigation done; implement TOTP enrollment & step-up verification | Sprint 19 | Team | 2026-12-05 |
 | S19-009 | Durable state: Implement PostgreSQL `live_positions` and `live_orders` replacing in-memory `Map` | Sprint 19 | Team | 2026-12-10 |
-| S19-010 | Startup ordering: Run multi-broker reconciliation before starting market feeds and command pollers | Sprint 19 | Team | 2026-12-10 |
+| S19-010 | Startup ordering done; durable hydration and complete broker reconciliation semantics pending | Sprint 19 | Team | 2026-12-10 |
+| S19-011 | Broker integration tests: current engine tests are unit-level; add end-to-end broker/event and recovery coverage | Sprint 19 | Team | 2026-12-16 |
 | S19-012 | Regulatory compliance: Algo order tagging (`X-Algo-Name`) & NSE circular INSP77559 undertaking review | Sprint 19 | Team | 2026-12-16 |
 
 ---

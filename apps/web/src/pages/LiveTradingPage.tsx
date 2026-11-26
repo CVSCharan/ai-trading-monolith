@@ -121,7 +121,7 @@ export function LiveTradingPage() {
           passed: gatesData.gates.operatorTwoFactor.passed,
         },
         {
-          label: 'Groww Access Token',
+          label: 'Broker Token (Groww / Upstox)',
           detail: gatesData.gates.growwCredentials.passed ? 'Valid' : 'Needs sync in Settings',
           passed: gatesData.gates.growwCredentials.passed,
         },

@@ -62,7 +62,7 @@ export function LoginPage() {
             <img src="/logo.svg" alt="AI Trader" className="h-10 w-10" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">AI Trader</h1>
-          <p className="mt-1 text-sm text-slate-400">Groww Options Desk · 9/21 EMA Strategy</p>
+          <p className="mt-1 text-sm text-slate-400">Multi-Broker Quantitative Options Terminal · 9/21 EMA</p>
         </div>
 
         {/* Card */}
@@ -151,14 +151,14 @@ export function LoginPage() {
               <TrendingUp className="h-4 w-4" />
               Use Demo Account
             </button>
-            <p className="mt-2 text-center text-[11px] text-slate-600">
-              Read-only · Pre-seeded paper trades · No Groww connection
+            <p className="mt-2 text-center text-[11px] text-slate-500">
+              Read-only · Pre-seeded paper trades · Simulated execution
             </p>
           </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-600">
-          AI Trader · Personal Trading Terminal · v0.9.0
+          AI Trader · Multi-Broker Algorithmic Terminal · v1.0.0
         </p>
       </div>
     </div>

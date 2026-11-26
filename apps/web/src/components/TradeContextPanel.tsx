@@ -41,7 +41,7 @@ export function TradeContextPanel({ trade }: { trade: TradeContextData | null })
           <CardTitle>Option &amp; Cost Context</CardTitle>
         </CardHeader>
         <CardContent className="text-xs text-slate-400">
-          Select a trade to inspect strike details, Greeks, and Groww F&amp;O cost breakdown.
+          Select a trade to inspect strike details, Greeks, and regulatory F&amp;O cost breakdown.
         </CardContent>
       </Card>
     );

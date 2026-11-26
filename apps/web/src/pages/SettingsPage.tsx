@@ -154,9 +154,9 @@ export function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight text-white">Settings &amp; Groww Connection</h2>
+        <h2 className="text-2xl font-semibold tracking-tight text-white">Settings &amp; Broker Connections</h2>
         <p className="text-sm text-slate-400">
-          Operator session, `.env` / DB-encrypted Groww TOTP token health, and risk guardrails
+          Operator session, broker TOTP &amp; OAuth integrations (Groww &amp; Upstox), and risk guardrails
         </p>
       </div>
 
@@ -176,7 +176,7 @@ export function SettingsPage() {
               <KeyRound className="h-4 w-4 text-sky-400" />
               Account Sign-In (Better Auth)
             </CardTitle>
-            <CardDescription>Required to manage strategies, paper runs, and Groww tokens</CardDescription>
+            <CardDescription>Required to manage strategies, paper runs, and broker connections</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <input

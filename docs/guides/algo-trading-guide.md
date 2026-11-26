@@ -43,12 +43,13 @@ This guide explains how **AI Trader** executes the 9/21 EMA options strategy end
 
 > [!CAUTION]
 > **LIVE TRADING STATUS: STRICTLY DISABLED (`ENABLE_LIVE_TRADING=false`)**
-> Live capital execution is unsafe and disabled. Critical blockers remain open in the live engine path:
+> Live capital execution is unsafe and disabled. The code has some fail-closed and state-safety hardening, but critical production blockers remain:
 > - **2FA Blocker**: `/api/live/enable` now fails closed and the engine rejects queued enable commands. A real operator TOTP enrollment and step-up verification flow is still required.
-> - **Signal Misclassification**: Strategy signals (`BUY`/`SELL` with `metadata.isExit`) must be properly mapped; cannot rely on `startsWith('ENTRY')`.
-> - **Option Pricing**: Limit orders must fetch real-time option LTP via `optionPriceLookup`, not the underlying index `spotPrice`.
-> - **Fill Confirmation**: Square-offs must wait for broker fills before marking positions closed.
-> - **Durable State & Startup Ordering**: In-memory state must be replaced by PostgreSQL persistence, and broker reconciliation must complete before market feeds and command loops start.
+> - **Signal Mapping**: Real `BUY`/`SELL` signal classification and execution-mode mapping are partly hardened; reversal handling and durable position/order lifecycle remain incomplete.
+> - **Option Pricing**: The engine rejects signals without a valid option quote, but production bar processing currently provides no `optionPriceLookup`; live signals therefore cannot execute. A correct broker instrument mapping and fresh quote source are required.
+> - **Fill Confirmation**: Square-off state waits for a mocked/injected fill update in unit-tested code, but no production broker order-update stream calls the handler and the state remains in memory.
+> - **Durable State & Startup**: Startup reconciliation now runs before market feeds, scheduler, and command polling; `/ready` remains unavailable until startup succeeds. Live order/position persistence, hydration, and complete reconciliation behavior remain incomplete.
+> - **Integration Evidence**: Current engine tests are unit tests. Broker event delivery, quote mapping, restart recovery, and exchange integration have not been proven end to end.
 > - **Regulatory Compliance**: Algo order tagging and static IP undertakings under NSE circular INSP77559 must be verified.
 
 #### 1. Live Safety Gates (Read-Only Until Operator 2FA Exists)
@@ -66,5 +67,5 @@ The gates endpoint reports these checks. Live enable remains blocked until opera
 - **Disarm First**: The engine disarms active strategy generators immediately to stop any new order placements before attempting broker cleanup.
 - **Cancellation & Close by Default**: Open orders are cancelled and live positions are squared off automatically by default (`cancelOrders: true, closePositions: true`).
 - **Bounded Limit Orders (`EMERGENCY_LIMIT_BUFFER_PCT`)**: Square-offs use tick-rounded marketable `LIMIT` orders with a bounded price buffer (default 1%, greater than 0% and at most 5%). This order type alone does not establish full exchange compliance; algo tagging, broker requirements, and current exchange controls still require review.
-- **Fill-Confirmed Accounting**: Position state remains open in Postgres until broker fill updates or reconciliation verify the position is flat.
+- **Fill-Confirmed Accounting**: Local position state remains `CLOSING` after square-off submission. Production accounting is not fill-confirmed yet: order updates are not wired into this handler and live engine state is not persisted in Postgres.
 
