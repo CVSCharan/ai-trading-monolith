@@ -18,7 +18,7 @@ interface StrategyRow {
 export function StrategyBuilderPage() {
   const qc = useQueryClient();
   const [name, setName] = useState('NIFTY 15m 9/21 EMA');
-  const [underlyingSymbol, setUnderlyingSymbol] = useState<'NIFTY' | 'BANKNIFTY'>('NIFTY');
+  const [underlyingSymbol, setUnderlyingSymbol] = useState('NIFTY');
   const [timeframe, setTimeframe] = useState<'5m' | '15m' | '30m'>('15m');
   const [executionMode, setExecutionMode] = useState<'DEEP_ITM_BUY' | 'ATM_BUY' | 'ATM_SELL'>('DEEP_ITM_BUY');
   const [entryStartTime, setEntryStartTime] = useState('09:30');
@@ -71,15 +71,25 @@ export function StrategyBuilderPage() {
           </label>
 
           <label className="text-xs text-slate-400">
-            Underlying
-            <Select
+            Underlying / Stock Symbol
+            <Input
               value={underlyingSymbol}
-              onChange={(e) => setUnderlyingSymbol(e.target.value as 'NIFTY' | 'BANKNIFTY')}
-              className="mt-1"
-            >
-              <option value="NIFTY">NIFTY</option>
-              <option value="BANKNIFTY">BANKNIFTY</option>
-            </Select>
+              onChange={(e) => setUnderlyingSymbol(e.target.value.toUpperCase())}
+              placeholder="NIFTY, BANKNIFTY, RELIANCE, TCS…"
+              className="mt-1 font-mono"
+            />
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'RELIANCE', 'TCS', 'HDFCBANK'].map((sym) => (
+                <button
+                  key={sym}
+                  type="button"
+                  onClick={() => setUnderlyingSymbol(sym)}
+                  className="rounded border border-slate-800 bg-slate-900 px-1.5 py-0.5 text-[10px] text-slate-300 hover:border-sky-500"
+                >
+                  {sym}
+                </button>
+              ))}
+            </div>
           </label>
 
           <label className="text-xs text-slate-400">
