@@ -129,13 +129,19 @@ export class LiveTradingEngine {
     const symbol = signal.optionSymbol;
     const side: 'BUY' | 'SELL' = isEntry ? 'BUY' : 'SELL';
 
+    // NSE Retail Algo Regulation Compliance:
+    // Market orders are prohibited for automated retail algo orders.
+    // Use marketable LIMIT orders with 1% price protection buffer.
+    const bufferMultiplier = isEntry ? 1.01 : 0.99;
+    const limitPrice = Number((optionPrice * bufferMultiplier).toFixed(2));
+
     const raw = (await this.growwClient.placeOrder({
       symbol,
       exchange: 'NFO',
       quantity,
       side,
-      orderType: isEntry ? 'MARKET' : 'LIMIT',
-      price: isEntry ? undefined : optionPrice,
+      orderType: 'LIMIT',
+      price: limitPrice,
       product: 'MIS',
       validity: 'DAY',
     })) as { orderId?: string; id?: string; status?: string } | undefined;
@@ -214,13 +220,17 @@ export class LiveTradingEngine {
       if (pos.status === 'CLOSED') continue;
       const qty = pos.filledQuantity > 0 ? pos.filledQuantity : pos.targetQuantity;
       const closeSide: 'BUY' | 'SELL' = pos.side === 'BUY' ? 'SELL' : 'BUY';
+      const ltp = pos.currentPrice || pos.avgEntryPrice;
+      const buffer = closeSide === 'SELL' ? 0.98 : 1.02;
+      const limitPrice = Number((ltp * buffer).toFixed(2));
 
       await this.growwClient.placeOrder({
         symbol: pos.optionSymbol,
         exchange: 'NFO',
         quantity: qty,
         side: closeSide,
-        orderType: 'MARKET',
+        orderType: 'LIMIT',
+        price: limitPrice,
         product: 'MIS',
         validity: 'DAY',
       });
@@ -237,5 +247,46 @@ export class LiveTradingEngine {
 
   getOpenPositions(): LivePositionState[] {
     return Array.from(this.positions.values()).filter((p) => p.status !== 'CLOSED');
+  }
+
+  /**
+   * Process closed market bars through live strategy signal generators.
+   */
+  async onBarClose(
+    userId: string,
+    generator: any,
+    closedBar: {
+      instrumentId: number;
+      timeframe: string;
+      barTime: Date;
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      volume: number;
+    },
+    instruments: any[],
+    risk: LiveRiskConfig = {
+      capital: 1000000,
+      maxDailyLossPct: 2,
+      maxOpenPositions: 3,
+      lotSize: 25,
+      maxLotsPerOrder: 4,
+    }
+  ): Promise<Signal[]> {
+    const signals: Signal[] = generator.processBar(closedBar);
+    for (const sig of signals) {
+      const idempotencyKey = `${userId}-${sig.optionSymbol}-${sig.signalType}-${closedBar.barTime.getTime()}`;
+      await this.placeOrder(
+        userId,
+        sig,
+        risk,
+        idempotencyKey,
+        risk.lotSize,
+        sig.spotPrice,
+        closedBar.barTime
+      );
+    }
+    return signals;
   }
 }

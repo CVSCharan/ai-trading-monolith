@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import { z } from 'zod';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { db } from '../db';
 import {
   engineCommands,
@@ -18,6 +18,27 @@ import { logAuditEvent } from '../middleware/audit-middleware';
 const EmergencyStopSchema = z.object({
   reason: z.string().min(1).max(255).default('Manual emergency stop'),
 });
+
+function calculatePaperPerformance(trades: Array<{ netPnl: string | null }>, startingCapital: number) {
+  const pnls = trades.map((trade) => Number(trade.netPnl ?? 0));
+  const wins = pnls.filter((pnl) => pnl > 0).reduce((sum, pnl) => sum + pnl, 0);
+  const losses = Math.abs(pnls.filter((pnl) => pnl < 0).reduce((sum, pnl) => sum + pnl, 0));
+  const profitFactor = losses > 0 ? wins / losses : wins > 0 ? Infinity : 0;
+
+  if (!Number.isFinite(startingCapital) || startingCapital <= 0) {
+    return { profitFactor, maxDrawdownPct: 100 };
+  }
+
+  let equity = startingCapital;
+  let peak = equity;
+  let maxDrawdownPct = 0;
+  for (const pnl of pnls) {
+    equity += pnl;
+    peak = Math.max(peak, equity);
+    if (peak > 0) maxDrawdownPct = Math.max(maxDrawdownPct, ((peak - equity) / peak) * 100);
+  }
+  return { profitFactor, maxDrawdownPct };
+}
 
 export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
   .use(authPlugin)
@@ -48,23 +69,18 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
       ? await db
           .select({ netPnl: paperTrades.netPnl })
           .from(paperTrades)
-          .where(eq(paperTrades.portfolioId, portfolio.id))
+          .where(and(
+            eq(paperTrades.portfolioId, portfolio.id),
+            isNotNull(paperTrades.exitTime),
+            isNotNull(paperTrades.netPnl),
+          ))
+          .orderBy(asc(paperTrades.exitTime))
       : [];
 
-    const pnls = trades.map((t) => Number(t.netPnl ?? 0));
-    const wins = pnls.filter((p) => p > 0).reduce((s, p) => s + p, 0);
-    const losses = Math.abs(pnls.filter((p) => p < 0).reduce((s, p) => s + p, 0));
-    const profitFactor = losses > 0 ? wins / losses : wins > 0 ? 999 : 0;
-
-    let equity = Number(portfolio?.dayStartValue ?? 1000000);
-    let peak = equity;
-    let maxDrawdownPct = 0;
-    for (const p of pnls) {
-      equity += p;
-      if (equity > peak) peak = equity;
-      const dd = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
-      if (dd > maxDrawdownPct) maxDrawdownPct = dd;
-    }
+    const { profitFactor, maxDrawdownPct } = calculatePaperPerformance(
+      trades,
+      Number(profile?.paperCapital ?? 1000000),
+    );
 
     const tokenValid =
       Boolean(cred?.isActive) &&
@@ -125,7 +141,12 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
       ? await db
           .select({ netPnl: paperTrades.netPnl })
           .from(paperTrades)
-          .where(eq(paperTrades.portfolioId, portfolio.id))
+          .where(and(
+            eq(paperTrades.portfolioId, portfolio.id),
+            isNotNull(paperTrades.exitTime),
+            isNotNull(paperTrades.netPnl),
+          ))
+          .orderBy(asc(paperTrades.exitTime))
       : [];
 
     if (trades.length < 100) {
@@ -135,14 +156,19 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
       };
     }
 
-    const pnls = trades.map((t) => Number(t.netPnl ?? 0));
-    const wins = pnls.filter((p) => p > 0).reduce((s, p) => s + p, 0);
-    const losses = Math.abs(pnls.filter((p) => p < 0).reduce((s, p) => s + p, 0));
-    const profitFactor = losses > 0 ? wins / losses : wins > 0 ? Infinity : 0;
+    const { profitFactor, maxDrawdownPct } = calculatePaperPerformance(
+      trades,
+      Number(profile.paperCapital ?? 1000000),
+    );
 
     if (profitFactor <= 1.5) {
       set.status = 403;
       return { error: `Paper profit factor (${profitFactor.toFixed(2)}) must be > 1.5` };
+    }
+
+    if (maxDrawdownPct >= 10) {
+      set.status = 403;
+      return { error: `Paper max drawdown (${maxDrawdownPct.toFixed(2)}%) must be < 10%` };
     }
 
     await db
@@ -158,7 +184,21 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
       details: { paperTradeCount: trades.length, profitFactor },
     });
 
-    return { enabled: true };
+    // Enqueue enable_live command so engine activates live strategy generators
+    const [cmd] = await db
+      .insert(engineCommands)
+      .values({
+        userId,
+        commandType: 'enable_live',
+        payload: {
+          enabled: true,
+          twoFactorVerified: true,
+        },
+        status: 'pending',
+      })
+      .returning();
+
+    return { enabled: true, commandId: cmd?.id };
   })
   .post('/emergency-stop', async ({ body, userId, userRole, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
@@ -177,7 +217,9 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
       .values({
         userId,
         commandType: 'emergency_stop',
-        payload: { reason },
+        // Emergency stops always request both actions. The engine also applies
+        // these defaults so older or malformed command producers fail safe.
+        payload: { cancelOrders: true, closePositions: true, reason },
         status: 'pending',
       })
       .returning();
@@ -191,7 +233,9 @@ export const liveTradingRoutes = new Elysia({ prefix: '/api/live' })
     });
 
     set.status = 202;
-    return { stopped: true, commandId: cmd?.id };
+    // Commands are processed asynchronously by the engine poller. Do not
+    // claim positions are closed until broker execution has been confirmed.
+    return { requested: true, commandId: cmd?.id };
   })
   .get('/orders', async ({ userId, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };

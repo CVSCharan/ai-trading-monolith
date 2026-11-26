@@ -135,7 +135,8 @@ export class GrowwClient {
     const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/profile`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
-    return response.json();
+    const body = await response.text();
+    return body ? JSON.parse(body) : {};
   }
 
   async getFunds(): Promise<unknown> {
@@ -143,7 +144,8 @@ export class GrowwClient {
     const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/funds`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
-    return response.json();
+    const body = await response.text();
+    return body ? JSON.parse(body) : {};
   }
 
   async getHoldings(): Promise<unknown> {
@@ -186,6 +188,10 @@ export class GrowwClient {
       body: JSON.stringify(order),
     });
 
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Groww order placement failed (${response.status}): ${body.slice(0, 200)}`);
+    }
     return response.json();
   }
 
@@ -195,6 +201,10 @@ export class GrowwClient {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` },
     });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Groww order cancellation failed (${response.status}): ${body.slice(0, 200)}`);
+    }
     return response.json();
   }
 

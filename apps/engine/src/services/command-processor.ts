@@ -166,7 +166,17 @@ export class CommandProcessor {
     // Initialize live trading engine
     // Similar to paper but with real orders
     const generators = new Map();
-    for (const strategyId of strategyIds) {
+    const targetStrategyIds =
+      Array.isArray(strategyIds) && strategyIds.length > 0
+        ? strategyIds
+        : (
+            await this.db
+              .select({ id: strategiesTable.id })
+              .from(strategiesTable)
+              .where(eq(strategiesTable.userId, userId))
+          ).map((s: any) => s.id);
+
+    for (const strategyId of targetStrategyIds) {
       const strategy = await this.loadStrategy(strategyId);
       if (!strategy) continue;
 
@@ -177,7 +187,7 @@ export class CommandProcessor {
 
     this.activeSessions.set(userId, { ...this.activeSessions.get(userId), live: { generators } });
 
-    return { enabled: true, strategies: strategyIds };
+    return { enabled: true, strategies: targetStrategyIds };
   }
 
   private async disableLive(userId: string, payload: any): Promise<any> {
@@ -195,25 +205,49 @@ export class CommandProcessor {
   }
 
   private async emergencyStop(userId: string, payload: any): Promise<any> {
-    const { cancelOrders, closePositions, reason } = payload;
+    // Missing flags must never turn a kill-switch command into a session-only
+    // stop. This also makes commands created by older API versions fail safe.
+    const {
+      cancelOrders = true,
+      closePositions = true,
+      reason = 'Emergency stop',
+    } = payload ?? {};
 
     this.logger.warn({ userId, reason }, 'EMERGENCY STOP triggered');
 
+    // Stop generating new orders before attempting broker-side cleanup.
+    this.activeSessions.delete(userId);
+
+    const failures: string[] = [];
+
     // Cancel all open orders
     if (cancelOrders) {
-      await this.cancelAllOrders(userId);
+      try {
+        await this.cancelAllOrders(userId);
+      } catch (err) {
+        failures.push(`cancel orders: ${err instanceof Error ? err.message : 'unknown error'}`);
+      }
     }
 
     // Close all positions
     if (closePositions) {
-      await this.closeAllPaperPositions(userId);
-      await this.closeAllLivePositions(userId);
+      try {
+        await this.closeAllPaperPositions(userId);
+      } catch (err) {
+        failures.push(`close paper positions: ${err instanceof Error ? err.message : 'unknown error'}`);
+      }
+      try {
+        await this.closeAllLivePositions(userId);
+      } catch (err) {
+        failures.push(`close live positions: ${err instanceof Error ? err.message : 'unknown error'}`);
+      }
     }
 
-    // Stop all sessions
-    this.activeSessions.delete(userId);
+    if (failures.length > 0) {
+      throw new Error(`Emergency stop incomplete: ${failures.join('; ')}`);
+    }
 
-    return { emergencyStop: true, reason };
+    return { emergencyStop: true, reason, closeOrdersSubmitted: Boolean(closePositions) };
   }
 
   private async updateRisk(userId: string, payload: any): Promise<any> {
@@ -341,34 +375,58 @@ export class CommandProcessor {
       .from(livePositions)
       .where(and(eq(livePositions.userId, userId), isNull(livePositions.closedAt)));
 
+    const failures: string[] = [];
     for (const pos of openPositions) {
+      const ltp = Number(pos.currentPrice ?? 0);
+      if (!Number.isFinite(ltp) || ltp <= 0) {
+        failures.push(`${pos.optionSymbol}: no valid current price`);
+        continue;
+      }
+
+      const [instrument] = await this.db
+        .select({ tickSize: instrumentsTable.tickSize })
+        .from(instrumentsTable)
+        .where(eq(instrumentsTable.growwToken, pos.optionSymbol))
+        .limit(1);
+      const tickSize = Number(instrument?.tickSize ?? 0);
+      if (!Number.isFinite(tickSize) || tickSize <= 0) {
+        failures.push(`${pos.optionSymbol}: instrument tick size is unavailable`);
+        continue;
+      }
+
+      const side = pos.side === 'LONG' ? 'SELL' : 'BUY';
+      const protectionPct = Number(process.env['EMERGENCY_LIMIT_BUFFER_PCT'] ?? 1);
+      if (!Number.isFinite(protectionPct) || protectionPct <= 0 || protectionPct > 5) {
+        failures.push(`${pos.optionSymbol}: EMERGENCY_LIMIT_BUFFER_PCT must be > 0 and <= 5`);
+        continue;
+      }
+      const rawLimitPrice = ltp * (side === 'BUY' ? 1 + protectionPct / 100 : 1 - protectionPct / 100);
+      const tickCount = rawLimitPrice / tickSize;
+      const limitPrice = (side === 'BUY' ? Math.ceil(tickCount) : Math.floor(tickCount)) * tickSize;
+
       try {
         await this.growwClient.placeOrder({
           symbol: pos.optionSymbol,
-          exchange: 'NSE',
+          exchange: 'NFO',
           quantity: pos.quantity,
-          side: pos.side === 'LONG' ? 'SELL' : 'BUY',
-          orderType: 'MARKET',
+          side,
+          orderType: 'LIMIT',
+          price: limitPrice,
           product: 'NRML',
           validity: 'DAY',
         });
       } catch (err) {
-        this.logger.error({ err, positionId: pos.id, symbol: pos.optionSymbol }, 'Failed to place close order for live position');
+        this.logger.error({ err, positionId: pos.id, symbol: pos.optionSymbol }, 'Failed to submit protected close order');
+        failures.push(`${pos.optionSymbol}: ${err instanceof Error ? err.message : 'order submission failed'}`);
+        continue;
       }
 
-      const entry = Number(pos.avgEntryPrice);
-      const exit = pos.currentPrice != null ? Number(pos.currentPrice) : entry;
-      const dir = pos.side === 'LONG' ? 1 : -1;
-      const pnl = ((exit - entry) * pos.quantity * dir).toFixed(2);
-
-      await this.db
-        .update(livePositions)
-        .set({
-          closedAt: new Date(),
-          realizedPnl: pnl,
-          closedReason: 'emergency_stop',
-        })
-        .where(eq(livePositions.id, pos.id));
+      // A successful order submission is not proof of a fill. Keep the position
+      // open until broker fill updates/reconciliation confirm it is flat.
+      this.logger.warn({ positionId: pos.id, symbol: pos.optionSymbol, limitPrice }, 'Protected close submitted; awaiting broker fill');
+    }
+    if (failures.length > 0) {
+      throw new Error(failures.join('; '));
     }
   }
 
@@ -384,12 +442,14 @@ export class CommandProcessor {
       );
 
     for (const order of pendingOrders) {
-      if (order.growwOrderId) {
-        try {
-          await this.growwClient.cancelOrder(order.growwOrderId);
-        } catch (err) {
-          this.logger.error({ err, orderId: order.growwOrderId }, 'Failed to cancel Groww order');
-        }
+      if (!order.growwOrderId) {
+        throw new Error(`Cannot cancel live order ${order.id}: broker order ID is missing`);
+      }
+      try {
+        await this.growwClient.cancelOrder(order.growwOrderId);
+      } catch (err) {
+        this.logger.error({ err, orderId: order.growwOrderId }, 'Failed to cancel Groww order');
+        throw err;
       }
       await this.db
         .update(liveFills)

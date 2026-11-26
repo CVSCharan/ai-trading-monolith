@@ -129,12 +129,13 @@ describe('LiveTradingEngine (S6-002..S6-005)', () => {
       expect(full?.status).toBe('OPEN');
       expect(full?.avgEntryPrice).toBe(126.0);
 
-      // 4. Unconditional 15:00 IST square-off closes position with MARKET SELL
+      // 4. Unconditional 15:00 IST square-off closes position with marketable LIMIT SELL (NSE Algo compliant)
       const closed = await engine.squareOffAll('15:00 IST square-off');
       expect(closed).toBe(1);
       expect(placed.length).toBe(2);
       expect(placed[1].side).toBe('SELL');
-      expect(placed[1].orderType).toBe('MARKET');
+      expect(placed[1].orderType).toBe('LIMIT');
+      expect(placed[1].price).toBeGreaterThan(0);
       expect(engine.getOpenPositions().length).toBe(0);
     } finally {
       process.env['ENABLE_LIVE_TRADING'] = prev;

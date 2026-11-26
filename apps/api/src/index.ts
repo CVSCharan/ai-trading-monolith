@@ -36,9 +36,14 @@ const app = new Elysia()
     set.headers['x-request-id'] = requestId;
     return { requestId };
   })
-  .onError(({ code, error, requestId, set }) => {
+  .onError(({ code, error, requestId, request, set }) => {
+    const url = new URL(request.url);
     const message = error instanceof Error ? error.message : 'Internal server error';
-    logger.error({ code, requestId, err: error }, 'Unhandled API error');
+    if (code === 'NOT_FOUND') {
+      logger.warn({ code, requestId, method: request.method, path: url.pathname }, `Route not found (404): ${request.method} ${url.pathname}`);
+    } else {
+      logger.error({ code, requestId, method: request.method, path: url.pathname, err: error }, 'Unhandled API error');
+    }
     if (!set.status || set.status === 200) {
       set.status = code === 'NOT_FOUND' ? 404 : code === 'VALIDATION' ? 400 : 500;
     }
@@ -79,6 +84,10 @@ const app = new Elysia()
       set.status = 503;
       return { status: 'degraded', db: 'disconnected', timestamp: new Date().toISOString() };
     }
+  })
+  .get('/favicon.ico', ({ set }) => {
+    set.status = 204;
+    return '';
   })
   .listen(config.port);
 
