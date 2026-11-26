@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
   BarChart3,
+  Layers,
   LineChart,
   Lock,
   LogOut,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Link, Route, Routes, useLocation } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
+import { OptionChainPage } from './pages/OptionChainPage';
 import { StrategyBuilderPage } from './pages/StrategyBuilderPage';
 import { BacktestResultsPage } from './pages/BacktestResultsPage';
 import { TradeAuditorPage } from './pages/TradeAuditorPage';
@@ -35,6 +37,7 @@ interface HealthResponse {
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: Activity, demoAllowed: true },
+  { to: '/option-chain', label: 'Option Chain', icon: Layers, demoAllowed: true },
   { to: '/strategy/builder', label: 'Strategy Builder', icon: LineChart, demoAllowed: true },
   { to: '/backtest', label: 'Backtests', icon: BarChart3, demoAllowed: true },
   { to: '/trade-auditor', label: 'Trade Auditor', icon: TrendingUp, demoAllowed: true },
@@ -167,6 +170,7 @@ function AppShell() {
         <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
           <Routes>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/option-chain" element={<OptionChainPage />} />
             <Route path="/strategy/builder" element={<StrategyBuilderPage />} />
             <Route path="/backtest" element={<BacktestResultsPage />} />
             <Route path="/trade-auditor" element={<TradeAuditorPage />} />

@@ -128,6 +128,7 @@
 | S9-001..S9-011 | Auth, RBAC (`SUPER_ADMIN` / `DEMO`), Login, Forgot/Reset Password | 2026-11-26 |
 | S10-001..S10-005 | Dual-Broker Architecture: Upstox Analytics + v3 Trading & Groww TOTP | 2026-11-26 |
 | S8-001..S8-005 | Groww Pro Features: Custom Watchlist (`watchlists`), Margins (`/api/groww/margins`), OCO/GTT (`/api/groww/smart-order`), Historical Candles (`/api/groww/candles`), Live Positions (`/api/groww/positions`) | 2026-11-26 |
+| S11-001..S11-004 | Engine `BrokerRouter` (`GrowwBrokerAdapter` + `UpstoxClient`), `UpstoxMarketDataFeed` WS v3, & `OptionChainPage` UI | 2026-11-26 |
 
 ---
 
