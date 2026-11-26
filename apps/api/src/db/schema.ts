@@ -546,6 +546,25 @@ export const reconciliationState = pgTable('reconciliation_state', {
 }));
 
 // ============================================
+// Watchlists (S8-001: DB-backed Custom Watchlist)
+// ============================================
+
+export const watchlists = pgTable('watchlists', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => user.id, { onDelete: 'cascade' }),
+  symbol: varchar('symbol', { length: 100 }).notNull(),
+  exchange: varchar('exchange', { length: 20 }).notNull().default('NSE'),
+  segment: varchar('segment', { length: 20 }).notNull().default('FO'),
+  instrumentKey: varchar('instrument_key', { length: 100 }),
+  notes: varchar('notes', { length: 255 }),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userSymbolIdx: uniqueIndex('watchlists_user_symbol_idx').on(table.userId, table.symbol, table.exchange),
+  userSortIdx: index('watchlists_user_idx').on(table.userId, table.sortOrder),
+}));
+
+// ============================================
 // TypeScript Types
 // ============================================
 

@@ -4,7 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { authenticator } from 'otplib';
 import { db } from '../db';
 import { growwCredentials } from '../db/schema';
-import { authPlugin, requireAuth } from '../middleware/auth-middleware';
+import { authPlugin, requireAuth, requireRole } from '../middleware/auth-middleware';
 import { createRateLimitPlugin } from '../middleware/rate-limit-middleware';
 import { logAuditEvent } from '../middleware/audit-middleware';
 import { encrypt, decrypt, getMasterKey } from '../utils/encryption';
@@ -196,4 +196,135 @@ export const growwRoutes = new Elysia({ prefix: '/api/groww' })
     });
 
     return { synced: true, tokenExpiresAt: expiresAt, source: cred ? 'db' : 'env' };
+  })
+
+  // ── GET /api/groww/margins (S8-002) ───────────────────────────
+  .get('/margins', async ({ userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const [cred] = await db
+      .select({ accessTokenEncrypted: growwCredentials.accessTokenEncrypted })
+      .from(growwCredentials)
+      .where(eq(growwCredentials.userId, userId))
+      .limit(1);
+
+    if (!cred?.accessTokenEncrypted) {
+      set.status = 400;
+      return { error: 'Groww access token not synced yet. Click Test / Refresh Access Token in Settings.' };
+    }
+
+    const token = decrypt(cred.accessTokenEncrypted, getMasterKey());
+    const response = await fetch(`${GROWW_API_BASE_URL}/v1/margins/detail/user`, {
+      headers: { Authorization: `Bearer ${token}`, 'X-API-VERSION': '1.0' },
+    });
+    if (!response.ok) {
+      set.status = 502;
+      return { error: `Groww margins error: ${response.status}` };
+    }
+    return response.json();
+  })
+
+  // ── GET /api/groww/positions (S8-005) ─────────────────────────
+  .get('/positions', async ({ userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const [cred] = await db
+      .select({ accessTokenEncrypted: growwCredentials.accessTokenEncrypted })
+      .from(growwCredentials)
+      .where(eq(growwCredentials.userId, userId))
+      .limit(1);
+
+    if (!cred?.accessTokenEncrypted) {
+      set.status = 400;
+      return { error: 'Groww access token not synced yet.' };
+    }
+
+    const token = decrypt(cred.accessTokenEncrypted, getMasterKey());
+    const response = await fetch(`${GROWW_API_BASE_URL}/v1/positions/user`, {
+      headers: { Authorization: `Bearer ${token}`, 'X-API-VERSION': '1.0' },
+    });
+    if (!response.ok) {
+      set.status = 502;
+      return { error: `Groww positions error: ${response.status}` };
+    }
+    return response.json();
+  })
+
+  // ── POST /api/groww/smart-order (S8-003: OCO / GTT) ───────────
+  .post('/smart-order', async ({ body, userId, userRole, request, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+    if (!requireRole(userRole, 'SUPER_ADMIN', set)) return { error: 'Forbidden: SUPER_ADMIN only' };
+
+    const [cred] = await db
+      .select({ accessTokenEncrypted: growwCredentials.accessTokenEncrypted })
+      .from(growwCredentials)
+      .where(eq(growwCredentials.userId, userId))
+      .limit(1);
+
+    if (!cred?.accessTokenEncrypted) {
+      set.status = 400;
+      return { error: 'Groww access token not synced yet.' };
+    }
+
+    const token = decrypt(cred.accessTokenEncrypted, getMasterKey());
+    const response = await fetch(`${GROWW_API_BASE_URL}/v1/order-advance/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'X-API-VERSION': '1.0',
+        'X-Idempotency-Key': crypto.randomUUID(),
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+    await logAuditEvent({
+      userId,
+      action: 'GROWW_SMART_ORDER_CREATED',
+      entityType: 'smart_order',
+      details: { status: response.status },
+      ipAddress: request.headers.get('x-forwarded-for') ?? undefined,
+    });
+
+    if (!response.ok) {
+      set.status = 502;
+      return { error: 'Groww smart order failed', details: data };
+    }
+    return data;
+  })
+
+  // ── GET /api/groww/candles (S8-004: Historical Backfill) ──────
+  .get('/candles', async ({ query, userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const [cred] = await db
+      .select({ accessTokenEncrypted: growwCredentials.accessTokenEncrypted })
+      .from(growwCredentials)
+      .where(eq(growwCredentials.userId, userId))
+      .limit(1);
+
+    if (!cred?.accessTokenEncrypted) {
+      set.status = 400;
+      return { error: 'Groww access token not synced yet.' };
+    }
+
+    const token = decrypt(cred.accessTokenEncrypted, getMasterKey());
+    const qs = new URLSearchParams({
+      exchange: query['exchange'] ?? 'NSE',
+      segment: query['segment'] ?? 'FNO',
+      trading_symbol: query['symbol'] ?? 'NIFTY',
+      start_time: query['startTime'] ?? '',
+      end_time: query['endTime'] ?? '',
+      interval_in_minutes: query['interval'] ?? '15',
+    });
+
+    const response = await fetch(`${GROWW_API_BASE_URL}/v1/historical/candle/range?${qs.toString()}`, {
+      headers: { Authorization: `Bearer ${token}`, 'X-API-VERSION': '1.0' },
+    });
+    if (!response.ok) {
+      set.status = 502;
+      return { error: `Groww historical candles error: ${response.status}` };
+    }
+    return response.json();
   });

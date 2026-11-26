@@ -74,11 +74,7 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S8-001](sprints/sprint-8.md#S8-001) | Custom Watchlist (DB + Groww Instruments & Live LTP/WS) | 🟡 | 2027-01-17 |
-| [S8-002](sprints/sprint-8.md#S8-002) | Live Margin & Funds Check (`/v1/margins/detail/user`) | 🔴 | 2027-01-18 |
-| [S8-003](sprints/sprint-8.md#S8-003) | Broker-Side Smart Orders: OCO & GTT (`/v1/order-advance/create`) | 🔴 | 2027-01-19 |
-| [S8-004](sprints/sprint-8.md#S8-004) | Historical Candle Backfill (`/v1/historical/candle/range`) | 🟡 | 2027-01-20 |
-| [S8-005](sprints/sprint-8.md#S8-005) | Live Positions & Holdings Sync (`/v1/positions/user`) | 🟡 | 2027-01-21 |
+| *(All Sprint 8 tickets complete!)* | — | — | — |
 
 ---
 
@@ -131,6 +127,7 @@
 | S7-001..007 | Fix Tailwind CWD resolution (`17.06 kB` CSS, 0 warnings), add `shadcn/ui` primitives, `PortfolioBar`, `SignalFeed`, `EquityAreaChart`, `DashboardPage`, `TradeContextPanel`, `LiveTradingPage`, `.env`-aware `SettingsPage` + `/api/groww/status` & `/sync` fallback | 2026-11-26 |
 | S9-001..S9-011 | Auth, RBAC (`SUPER_ADMIN` / `DEMO`), Login, Forgot/Reset Password | 2026-11-26 |
 | S10-001..S10-005 | Dual-Broker Architecture: Upstox Analytics + v3 Trading & Groww TOTP | 2026-11-26 |
+| S8-001..S8-005 | Groww Pro Features: Custom Watchlist (`watchlists`), Margins (`/api/groww/margins`), OCO/GTT (`/api/groww/smart-order`), Historical Candles (`/api/groww/candles`), Live Positions (`/api/groww/positions`) | 2026-11-26 |
 
 ---
 

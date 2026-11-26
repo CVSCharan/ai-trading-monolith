@@ -219,8 +219,82 @@ export class GrowwClient {
     const token = await this.getAccessToken();
     const response = await fetch(
       `${this.growwConfig.apiBaseUrl}/v1/market/candles?symbol=${symbol}&interval=${interval}&from=${from.toISOString()}&to=${to.toISOString()}`,
-      { headers: { 'Authorization': `Bearer ${token}` } }
+      { headers: { 'Authorization': `Bearer ${token}`, 'X-API-VERSION': '1.0' } }
     );
+    return response.json();
+  }
+
+  /** S8-004: Historical candle range endpoint (/v1/historical/candle/range) */
+  async getHistoricalCandleRange(params: {
+    exchange: string;
+    segment: string;
+    tradingSymbol: string;
+    startTime: string;
+    endTime: string;
+    intervalInMinutes: number;
+  }): Promise<unknown> {
+    const token = await this.getAccessToken();
+    const qs = new URLSearchParams({
+      exchange: params.exchange,
+      segment: params.segment,
+      trading_symbol: params.tradingSymbol,
+      start_time: params.startTime,
+      end_time: params.endTime,
+      interval_in_minutes: String(params.intervalInMinutes),
+    });
+    const response = await fetch(
+      `${this.growwConfig.apiBaseUrl}/v1/historical/candle/range?${qs.toString()}`,
+      { headers: { 'Authorization': `Bearer ${token}`, 'X-API-VERSION': '1.0' } }
+    );
+    return response.json();
+  }
+
+  /** S8-002: Live Margin & Funds Detail (/v1/margins/detail/user) */
+  async getMarginDetails(): Promise<unknown> {
+    const token = await this.getAccessToken();
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/margins/detail/user`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'X-API-VERSION': '1.0' },
+    });
+    return response.json();
+  }
+
+  /** S8-003: Broker-Side Smart Orders (OCO / GTT via /v1/order-advance/create) */
+  async createSmartOrder(payload: {
+    smartOrderType: 'OCO' | 'GTT';
+    tradingSymbol: string;
+    exchange: 'NSE' | 'BSE';
+    segment: 'CASH' | 'FNO';
+    quantity: number;
+    productType: 'CNC' | 'MIS' | 'NRML';
+    transactionType: 'BUY' | 'SELL';
+    targetPrice?: number;
+    stopLossPrice?: number;
+    triggerPrice?: number;
+    validity?: string;
+  }): Promise<unknown> {
+    const token = await this.getAccessToken();
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/order-advance/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'X-API-VERSION': '1.0',
+        'X-Idempotency-Key': crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        smart_order_type: payload.smartOrderType,
+        trading_symbol: payload.tradingSymbol,
+        exchange: payload.exchange,
+        segment: payload.segment,
+        quantity: payload.quantity,
+        product_type: payload.productType,
+        transaction_type: payload.transactionType,
+        target_price: payload.targetPrice,
+        stop_loss_price: payload.stopLossPrice,
+        trigger_price: payload.triggerPrice,
+        validity: payload.validity ?? 'GTC',
+      }),
+    });
     return response.json();
   }
 

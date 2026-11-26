@@ -22,6 +22,7 @@ import { marketDataRoutes } from './routes/market-data';
 import { paperTradingRoutes } from './routes/paper-trading';
 import { liveTradingRoutes } from './routes/live-trading';
 import { growwRoutes } from './routes/groww';
+import { watchlistRoutes } from './routes/watchlist';
 import { engineRoutes } from './routes/engine';
 import { authExtraRoutes } from './routes/auth-extra';
 import { upstoxRoutes } from './routes/upstox';
@@ -59,6 +60,7 @@ const app = new Elysia()
   .use(paperTradingRoutes)
   .use(liveTradingRoutes)
   .use(growwRoutes)
+  .use(watchlistRoutes)
   .use(upstoxRoutes)
   .use(engineRoutes)
   .use(authExtraRoutes)
