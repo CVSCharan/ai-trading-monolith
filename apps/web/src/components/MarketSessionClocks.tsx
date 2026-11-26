@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Bell, Clock, Globe, X, AlertTriangle, CheckCircle, ShieldAlert } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { SkeletonMarketGrid } from './ui/skeleton';
 import { useWebSocket } from '../hooks/useWebSocket';
 
 export interface MarketSessionInfo {
@@ -255,7 +256,7 @@ export function MarketSessionsDashboardCard() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="py-6 text-center text-xs text-slate-500">Loading market sessions...</div>
+          <SkeletonMarketGrid />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
             {sessions.map((s) => (

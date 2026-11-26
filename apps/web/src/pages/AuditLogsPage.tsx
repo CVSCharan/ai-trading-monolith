@@ -8,6 +8,7 @@ import { ScrollText, Search } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
+import { SkeletonTable } from '../components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface AuditRow {
@@ -22,7 +23,7 @@ interface AuditRow {
 export function AuditLogsPage() {
   const [actionFilter, setActionFilter] = useState('');
 
-  const { data } = useQuery<{ logs: AuditRow[] }>({
+  const { data, isLoading } = useQuery<{ logs: AuditRow[] }>({
     queryKey: ['audit-logs', actionFilter],
     refetchInterval: 10_000,
     queryFn: async () => {
@@ -66,7 +67,9 @@ export function AuditLogsPage() {
           <CardDescription>{logs.length} event(s) loaded (IST)</CardDescription>
         </CardHeader>
         <CardContent>
-          {logs.length === 0 ? (
+          {isLoading && logs.length === 0 ? (
+            <SkeletonTable rows={8} cols={4} className="py-2" />
+          ) : logs.length === 0 ? (
             <p className="text-xs text-slate-400">No audit events recorded yet.</p>
           ) : (
             <Table>

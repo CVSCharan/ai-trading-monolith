@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Skeleton } from './ui/skeleton';
 
 interface WatchlistItem {
   id: string;
@@ -32,7 +33,7 @@ export function WatchlistPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
-  const { data: watchlistData, refetch } = useQuery<{ items: WatchlistItem[] }>({
+  const { data: watchlistData, isLoading, refetch } = useQuery<{ items: WatchlistItem[] }>({
     queryKey: ['watchlist'],
     queryFn: async () => {
       const res = await fetch('/api/watchlist', { credentials: 'include' });
@@ -144,7 +145,19 @@ export function WatchlistPanel() {
           </div>
         )}
 
-        {items.length === 0 ? (
+        {isLoading && items.length === 0 ? (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2.5">
+                <div className="space-y-1.5">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-3 w-14" />
+                </div>
+                <Skeleton className="h-5 w-16" />
+              </div>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-800 p-4 text-center text-xs text-slate-400">
             No pinned symbols yet. Pin NIFTY or BANKNIFTY to monitor quick jumps.
           </div>

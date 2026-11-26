@@ -11,6 +11,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
+import { SkeletonTable } from '../components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface OptionChainResponse {
@@ -130,7 +131,9 @@ export function OptionChainPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 ? (
+          {isFetching && rows.length === 0 ? (
+            <SkeletonTable rows={10} cols={9} className="py-2" />
+          ) : rows.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-800 p-6 text-center text-xs text-slate-400">
               {data?.error
                 ? 'Set UPSTOX_ANALYTICS_TOKEN in .env to stream live Option Chain data.'

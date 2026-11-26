@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TradeCandlestickChart, type ChartCandle } from '../components/charts/TradeCandlestickChart';
+import { Skeleton, SkeletonChart, SkeletonTable } from '../components/ui/skeleton';
 import { TradeContextPanel } from '../components/TradeContextPanel';
 
 interface TradeRecord {
@@ -101,8 +102,18 @@ export function TradeAuditorPage() {
         </div>
       </div>
 
-      {isLoading && <div className="text-sm text-slate-400">Loading chart data...</div>}
-      {error && <div className="text-sm text-red-400">Sign in and select a valid trade ID to inspect.</div>}
+      {isLoading && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <SkeletonChart height="h-[420px]" />
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4 space-y-4">
+            <Skeleton className="h-5 w-32" />
+            <SkeletonTable rows={6} cols={2} />
+          </div>
+        </div>
+      )}
+      {error && !isLoading && <div className="text-sm text-red-400">Sign in and select a valid trade ID to inspect.</div>}
 
       {trade && (
         <div className="grid gap-4 lg:grid-cols-3">

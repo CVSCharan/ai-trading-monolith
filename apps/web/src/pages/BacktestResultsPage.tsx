@@ -4,6 +4,7 @@ import { Bot } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { SkeletonMetricCard, SkeletonTable } from '../components/ui/skeleton';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 
@@ -145,7 +146,21 @@ export function BacktestResultsPage() {
         </CardContent>
       </Card>
 
-      {runData?.run && (
+      {(runMutation.isPending || runData?.run?.status === 'running') && (
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+            <SkeletonTable rows={5} cols={3} />
+          </div>
+        </div>
+      )}
+
+      {runData?.run && runData.run.status !== 'running' && (
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="p-4">

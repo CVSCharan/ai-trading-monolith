@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import { Skeleton, SkeletonTable } from '../components/ui/skeleton';
 import { useWebSocket } from '../hooks/useWebSocket';
 
 export function PaperTradingPage() {
@@ -53,7 +54,7 @@ export function PaperTradingPage() {
     },
   });
 
-  const { data: positionsData } = useQuery<{ positions: Array<Record<string, any>> }>({
+  const { data: positionsData, isLoading: isPositionsLoading } = useQuery<{ positions: Array<Record<string, any>> }>({
     queryKey: ['paper-positions'],
     refetchInterval: 5_000,
     queryFn: async () => {
@@ -63,7 +64,7 @@ export function PaperTradingPage() {
     },
   });
 
-  const { data: historyData } = useQuery<{ trades: Array<Record<string, any>> }>({
+  const { data: historyData, isLoading: isHistoryLoading } = useQuery<{ trades: Array<Record<string, any>> }>({
     queryKey: ['paper-history'],
     refetchInterval: 10_000,
     queryFn: async () => {
@@ -266,7 +267,9 @@ export function PaperTradingPage() {
             <CardTitle>Open Paper Positions ({positions.length})</CardTitle>
           </CardHeader>
           <CardContent>
-            {positions.length === 0 ? (
+            {isPositionsLoading && positions.length === 0 ? (
+              <SkeletonTable rows={3} cols={4} className="py-1" />
+            ) : positions.length === 0 ? (
               <p className="text-sm text-slate-400">No open paper positions.</p>
             ) : (
               <div className="space-y-2 text-sm">
@@ -325,7 +328,9 @@ export function PaperTradingPage() {
           <CardDescription>All completed paper trades with simulated brokerage &amp; taxes</CardDescription>
         </CardHeader>
         <CardContent>
-          {trades.length === 0 ? (
+          {isHistoryLoading && trades.length === 0 ? (
+            <SkeletonTable rows={6} cols={7} className="py-2" />
+          ) : trades.length === 0 ? (
             <p className="text-xs text-slate-400">No closed paper trades yet.</p>
           ) : (
             <Table>

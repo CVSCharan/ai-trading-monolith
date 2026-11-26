@@ -11,6 +11,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Select } from '../components/ui/select';
+import { Skeleton, SkeletonMetricCard } from '../components/ui/skeleton';
 
 interface EngineHealthResponse {
   health: {
@@ -47,7 +48,7 @@ export function BotControlPage() {
   const [selectedStrategyId, setSelectedStrategyId] = useState('');
   const [feedback, setFeedback] = useState('');
 
-  const { data: healthData } = useQuery<EngineHealthResponse>({
+  const { data: healthData, isLoading: isHealthLoading } = useQuery<EngineHealthResponse>({
     queryKey: ['engine-health'],
     refetchInterval: 5_000,
     queryFn: async () => {
@@ -167,36 +168,45 @@ export function BotControlPage() {
 
       {feedback && <Alert variant="info">{feedback}</Alert>}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Engine Host</CardDescription>
-            <CardTitle className="font-mono text-base">{health?.hostId ?? '—'}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Active Bot Sessions</CardDescription>
-            <CardTitle className="font-mono text-emerald-400">{health?.activeSessions ?? 0}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Data Broker</CardDescription>
-            <CardTitle className="font-mono uppercase text-violet-400">
-              {brokerData?.activeDataBroker ?? 'groww'}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Execution Broker</CardDescription>
-            <CardTitle className="font-mono uppercase text-sky-400">
-              {brokerData?.activeExecutionBroker ?? 'groww'}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
+      {isHealthLoading && !health ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SkeletonMetricCard />
+          <SkeletonMetricCard />
+          <SkeletonMetricCard />
+          <SkeletonMetricCard />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Engine Host</CardDescription>
+              <CardTitle className="font-mono text-base">{health?.hostId ?? '—'}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Active Bot Sessions</CardDescription>
+              <CardTitle className="font-mono text-emerald-400">{health?.activeSessions ?? 0}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Data Broker</CardDescription>
+              <CardTitle className="font-mono uppercase text-violet-400">
+                {brokerData?.activeDataBroker ?? 'groww'}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Execution Broker</CardDescription>
+              <CardTitle className="font-mono uppercase text-sky-400">
+                {brokerData?.activeExecutionBroker ?? 'groww'}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+      )}
 
       <RoleGuard role="SUPER_ADMIN" message="Demo mode is read-only. Sign in as SUPER_ADMIN to start, stop, or kill the trading bot.">
         <Card>
