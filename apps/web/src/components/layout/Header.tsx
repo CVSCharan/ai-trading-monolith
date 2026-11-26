@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { Badge } from '../ui/badge';
 import { NAV_GROUPS } from './Sidebar';
+import { MarketClockHeaderPill, MarketAlertToastBanner } from '../MarketSessionClocks';
 
 interface HealthResponse {
   status: string;
@@ -64,7 +65,9 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
   const pageTitle = getPageTitle(location.pathname);
 
   return (
-    <header className="h-14 shrink-0 border-b border-slate-800/80 bg-slate-900/50 backdrop-blur-md px-4 lg:px-6 flex items-center justify-between gap-4 relative z-30">
+    <>
+      <MarketAlertToastBanner />
+      <header className="h-14 shrink-0 border-b border-slate-800/80 bg-slate-900/50 backdrop-blur-md px-4 lg:px-6 flex items-center justify-between gap-4 relative z-30">
       <div className="flex items-center gap-3 min-w-0">
         <button
           type="button"
@@ -109,9 +112,7 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
         <Badge variant="info" className="hidden xl:inline-flex uppercase">
           {broker?.activeDataBroker ?? 'groww'} / {broker?.activeExecutionBroker ?? 'groww'}
         </Badge>
-        <Badge variant="info" className="hidden sm:inline-flex">
-          15:00 IST
-        </Badge>
+        <MarketClockHeaderPill />
 
         {user && (
           <div className="relative">
@@ -169,5 +170,6 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
         )}
       </div>
     </header>
+    </>
   );
 }

@@ -14,6 +14,7 @@ import { engineCommands, engineState, engineHealth, reconciliationState } from '
 import { eq, and, lt, isNull, desc, sql } from 'drizzle-orm';
 import { StreamingSignalGenerator } from '@groww-trading/strategy-core';
 import { WebSocketManager } from './services/websocket-manager';
+import { AlertingService } from './services/alerting';
 import { GrowwClient } from './services/groww-client';
 import { CommandProcessor } from './services/command-processor';
 import { ReconciliationService } from './services/reconciliation';
@@ -59,13 +60,14 @@ export const db = drizzle(pgClient);
 
 // Services
 const wsManager = new WebSocketManager(logger);
+const alerting = new AlertingService(logger);
 const growwClient = new GrowwClient(config.groww, logger);
 const reconciliation = new ReconciliationService(db, logger);
 const marketData = new MarketDataService(growwClient, db, logger);
 const commandProcessor = new CommandProcessor(db, logger, growwClient);
 const paperEngine = new PaperTradingEngine(db, logger, growwClient, marketData);
 const liveEngine = new LiveTradingEngine(db, logger, growwClient, marketData);
-const scheduler = new TradingScheduler(db, logger, growwClient);
+const scheduler = new TradingScheduler(db, logger, growwClient, alerting, wsManager);
 
 // Elysia app for health checks and metrics
 const app = new Elysia()

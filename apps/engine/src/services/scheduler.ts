@@ -1,10 +1,16 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import pino from 'pino';
 import { eq } from 'drizzle-orm';
-import { getISTDateString } from '@groww-trading/shared';
+import {
+  getISTDateString,
+  getMarketAlertSchedules,
+  type MarketAlertScheduleItem,
+} from '@groww-trading/shared';
 import { resampleCandles, type Candle1m } from '@groww-trading/strategy-core';
 import { candles1m, candlesResampled, instruments } from '../../../api/src/db/schema';
 import type { GrowwClient } from './groww-client';
+import type { AlertingService } from './alerting';
+import type { WebSocketManager } from './websocket-manager';
 import { isNSETradingDay } from './nse-holidays';
 
 export class TradingScheduler {
@@ -14,7 +20,9 @@ export class TradingScheduler {
   constructor(
     private db: any,
     logger: pino.Logger,
-    private growwClient: GrowwClient
+    private growwClient: GrowwClient,
+    private alerting?: AlertingService,
+    private wsManager?: WebSocketManager
   ) {
     this.logger = logger.child({ component: 'TradingScheduler' });
   }
@@ -53,8 +61,62 @@ export class TradingScheduler {
       )
     );
 
-    this.logger.info('TradingScheduler started (IST cron jobs registered)');
+    // Multi-market lifecycle alerts (Open, -10m Pre-close, Close, +10m Post-close)
+    const alertItems = getMarketAlertSchedules();
+    for (const item of alertItems) {
+      this.tasks.push(
+        cron.schedule(
+          item.cronExpr,
+          () => {
+            void this.handleMarketAlert(item);
+          },
+          { timezone: 'Asia/Kolkata' }
+        )
+      );
+    }
+
+    this.logger.info(
+      { scheduledTasks: this.tasks.length, marketAlertTasks: alertItems.length },
+      'TradingScheduler started (IST cron jobs registered)'
+    );
   }
+
+  async handleMarketAlert(item: MarketAlertScheduleItem, force = false): Promise<void> {
+    const now = new Date();
+    if (!force && !isNSETradingDay(now)) {
+      this.logger.debug({ item }, 'Skipping market alert on non-trading day');
+      return;
+    }
+
+    const payload = {
+      marketId: item.marketId,
+      marketName: item.marketName,
+      eventType: item.eventType,
+      timeIST: item.timeIST,
+      message: item.message,
+      timestamp: now.toISOString(),
+    };
+
+    if (this.wsManager) {
+      this.wsManager.broadcast('market_alerts', payload);
+    }
+
+    if (this.alerting) {
+      await this.alerting.sendAlert({
+        severity: item.eventType === 'MARKET_CLOSING_SOON' ? 'WARNING' : 'INFO',
+        event: item.eventType,
+        message: item.message,
+        metadata: {
+          marketId: item.marketId,
+          marketName: item.marketName,
+          timeIST: item.timeIST,
+        },
+      });
+    }
+
+    this.logger.info({ alert: payload }, `[MarketAlert] ${item.eventType}: ${item.message}`);
+  }
+
 
   stop(): void {
     for (const task of this.tasks) {

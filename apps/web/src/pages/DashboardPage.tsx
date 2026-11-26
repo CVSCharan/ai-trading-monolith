@@ -5,6 +5,7 @@ import { EquityAreaChart } from '../components/charts/EquityAreaChart';
 import { PortfolioBar } from '../components/PortfolioBar';
 import { SignalFeed, type SignalFeedItem } from '../components/SignalFeed';
 import { WatchlistPanel } from '../components/WatchlistPanel';
+import { MarketSessionsDashboardCard } from '../components/MarketSessionClocks';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -185,6 +186,8 @@ export function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <MarketSessionsDashboardCard />
 
       <WatchlistPanel />
     </div>

@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
-import { UpstoxClient } from '@groww-trading/shared';
+import { UpstoxClient, getMarketStatuses } from '@groww-trading/shared';
 import { config } from '../config';
 import { db } from '../db';
 import { candles1m, candlesResampled, instruments } from '../db/schema';
@@ -16,6 +16,17 @@ function isIndianMarketOpen(now = new Date()): boolean {
 
 export const marketDataRoutes = new Elysia({ prefix: '/api/market' })
   .use(authPlugin)
+  .get('/sessions', async ({ userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const now = new Date();
+    const sessions = getMarketStatuses(now);
+    return {
+      sessions,
+      timestamp: now.toISOString(),
+      serverTimeIST: now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
+    };
+  })
   .get('/instruments', async ({ query, userId, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
 
