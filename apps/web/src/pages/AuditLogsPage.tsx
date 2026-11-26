@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ScrollText, Search } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface AuditRow {
@@ -50,11 +51,11 @@ export function AuditLogsPage() {
 
         <div className="relative w-64">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-          <input
+          <Input
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
             placeholder="Filter by action…"
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-3 text-xs text-white focus:border-sky-500 focus:outline-none"
+            className="pl-9 text-xs"
           />
         </div>
       </div>

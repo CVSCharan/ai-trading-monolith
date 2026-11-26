@@ -9,6 +9,8 @@ import type { OptionChainRow } from '@groww-trading/shared';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Select } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
 interface OptionChainResponse {
@@ -66,23 +68,23 @@ export function OptionChainPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <select
+          <Select
             value={instrumentKey}
             onChange={(e) => setInstrumentKey(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none"
+            className="w-auto text-xs"
           >
             {UNDERLYINGS.map((u) => (
               <option key={u.key} value={u.key}>
                 {u.label}
               </option>
             ))}
-          </select>
+          </Select>
 
-          <input
+          <Input
             type="date"
             value={expiryDate}
             onChange={(e) => setExpiryDate(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none"
+            className="w-auto text-xs"
           />
 
           <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>

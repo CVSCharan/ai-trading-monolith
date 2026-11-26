@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Select } from '../components/ui/select';
 
 interface StrategyRow {
   id: string;
@@ -56,93 +60,86 @@ export function StrategyBuilderPage() {
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold text-white">Strategy Builder</h2>
 
-      <div className="grid gap-4 rounded-xl border border-slate-800 bg-slate-900/70 p-5 md:grid-cols-3">
-        <label className="text-sm text-slate-300">
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
-          />
-        </label>
+      <Card>
+        <CardHeader>
+          <CardTitle>New 9/21 EMA Strategy</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <label className="text-xs text-slate-400">
+            Name
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
+          </label>
 
-        <label className="text-sm text-slate-300">
-          Underlying
-          <select
-            value={underlyingSymbol}
-            onChange={(e) => setUnderlyingSymbol(e.target.value as 'NIFTY' | 'BANKNIFTY')}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
-          >
-            <option value="NIFTY">NIFTY</option>
-            <option value="BANKNIFTY">BANKNIFTY</option>
-          </select>
-        </label>
+          <label className="text-xs text-slate-400">
+            Underlying
+            <Select
+              value={underlyingSymbol}
+              onChange={(e) => setUnderlyingSymbol(e.target.value as 'NIFTY' | 'BANKNIFTY')}
+              className="mt-1"
+            >
+              <option value="NIFTY">NIFTY</option>
+              <option value="BANKNIFTY">BANKNIFTY</option>
+            </Select>
+          </label>
 
-        <label className="text-sm text-slate-300">
-          Timeframe
-          <select
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value as '5m' | '15m' | '30m')}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
-          >
-            <option value="5m">5m</option>
-            <option value="15m">15m</option>
-            <option value="30m">30m</option>
-          </select>
-        </label>
+          <label className="text-xs text-slate-400">
+            Timeframe
+            <Select
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value as '5m' | '15m' | '30m')}
+              className="mt-1"
+            >
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+              <option value="30m">30m</option>
+            </Select>
+          </label>
 
-        <label className="text-sm text-slate-300">
-          Execution Mode
-          <select
-            value={executionMode}
-            onChange={(e) => setExecutionMode(e.target.value as 'DEEP_ITM_BUY' | 'ATM_BUY' | 'ATM_SELL')}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
-          >
-            <option value="DEEP_ITM_BUY">DEEP_ITM_BUY</option>
-            <option value="ATM_BUY">ATM_BUY</option>
-            <option value="ATM_SELL">ATM_SELL</option>
-          </select>
-        </label>
+          <label className="text-xs text-slate-400">
+            Execution Mode
+            <Select
+              value={executionMode}
+              onChange={(e) => setExecutionMode(e.target.value as 'DEEP_ITM_BUY' | 'ATM_BUY' | 'ATM_SELL')}
+              className="mt-1"
+            >
+              <option value="DEEP_ITM_BUY">DEEP_ITM_BUY</option>
+              <option value="ATM_BUY">ATM_BUY</option>
+              <option value="ATM_SELL">ATM_SELL</option>
+            </Select>
+          </label>
 
-        <label className="text-sm text-slate-300">
-          Entry Start (IST)
-          <input
-            value={entryStartTime}
-            onChange={(e) => setEntryStartTime(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
-          />
-        </label>
+          <label className="text-xs text-slate-400">
+            Entry Start (IST)
+            <Input value={entryStartTime} onChange={(e) => setEntryStartTime(e.target.value)} className="mt-1" />
+          </label>
 
-        <label className="text-sm text-slate-300">
-          Entry End (IST)
-          <input
-            value={entryEndTime}
-            onChange={(e) => setEntryEndTime(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
-          />
-        </label>
+          <label className="text-xs text-slate-400">
+            Entry End (IST)
+            <Input value={entryEndTime} onChange={(e) => setEntryEndTime(e.target.value)} className="mt-1" />
+          </label>
 
-        <label className="text-sm text-slate-300">
-          Lots
-          <input
-            type="number"
-            min={1}
-            value={lots}
-            onChange={(e) => setLots(Number(e.target.value))}
-            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white"
-          />
-        </label>
+          <label className="text-xs text-slate-400">
+            Lots
+            <Input
+              type="number"
+              min={1}
+              value={lots}
+              onChange={(e) => setLots(Number(e.target.value))}
+              className="mt-1"
+            />
+          </label>
 
-        <div className="flex items-end">
-          <button
-            onClick={() => createMutation.mutate()}
-            disabled={createMutation.isPending}
-            className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-sky-400 disabled:opacity-50"
-          >
-            {createMutation.isPending ? 'Saving...' : 'Save Strategy'}
-          </button>
-        </div>
-      </div>
+          <div className="flex items-end">
+            <Button
+              variant="primary"
+              onClick={() => createMutation.mutate()}
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending ? 'Saving...' : 'Save Strategy'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5">
         <h3 className="mb-3 font-semibold text-white">Saved Strategies</h3>

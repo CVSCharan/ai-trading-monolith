@@ -6,9 +6,11 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Bot, Cpu, Play, ShieldAlert, Square } from 'lucide-react';
 import { RoleGuard } from '../components/AuthGuard';
+import { Alert } from '../components/ui/alert';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Select } from '../components/ui/select';
 
 interface EngineHealthResponse {
   health: {
@@ -163,11 +165,7 @@ export function BotControlPage() {
         </Badge>
       </div>
 
-      {feedback && (
-        <div className="rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 text-sm text-sky-200">
-          {feedback}
-        </div>
-      )}
+      {feedback && <Alert variant="info">{feedback}</Alert>}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -209,10 +207,9 @@ export function BotControlPage() {
           <CardContent className="flex flex-wrap items-end gap-3">
             <div className="min-w-[260px] flex-1">
               <label className="mb-1.5 block text-xs text-slate-400">Strategy</label>
-              <select
+              <Select
                 value={activeStrategyValue}
                 onChange={(e) => setSelectedStrategyId(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
               >
                 {strategies.length === 0 && <option value="">No strategies saved</option>}
                 {strategies.map((s) => (
@@ -220,7 +217,7 @@ export function BotControlPage() {
                     {s.name} ({s.underlyingSymbol} · {s.timeframe} · {s.executionMode})
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <Button
