@@ -98,3 +98,17 @@ async function shutdown(signal: string) {
 
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
+
+process.on('unhandledRejection', (reason) => {
+  logger.error({ err: reason }, 'Unhandled promise rejection in API server (kept alive)');
+});
+
+process.on('uncaughtException', (err) => {
+  const code = (err as { code?: string })?.code;
+  if (code === 'CONNECTION_CLOSED' || code === 'ENOTFOUND' || code === 'ECONNRESET') {
+    logger.warn({ err }, 'Transient DB/network socket error caught (kept alive)');
+    return;
+  }
+  logger.fatal({ err }, 'Uncaught exception in API server');
+  process.exit(1);
+});
