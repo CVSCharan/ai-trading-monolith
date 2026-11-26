@@ -80,8 +80,8 @@ export function PaperTradingPage() {
           {events.length === 0 ? (
             <p className="text-sm text-slate-400">Waiting for live events on /api/market/ws...</p>
           ) : (
-            <div className="max-h-64 space-y-2 overflow-y-auto text-xs">
-              {events.map((ev, idx) => (
+            <div className="space-y-2 text-xs">
+              {events.slice(0, 20).map((ev, idx) => (
                 <div key={idx} className="rounded border border-slate-800 bg-slate-950 p-2 text-slate-300">
                   <span className="font-semibold text-sky-400">[{ev.channel}]</span> {JSON.stringify(ev.data)}
                 </div>
