@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RotateCcw, Send, XCircle } from 'lucide-react';
 import { RoleGuard } from '../components/AuthGuard';
+import { SymbolSearchInput } from '../components/SymbolSearchInput';
 import { Alert } from '../components/ui/alert';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -179,11 +180,13 @@ export function PaperTradingPage() {
             <CardDescription>Place unlimited virtual trades anytime without risking real capital</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Input
+            <SymbolSearchInput
               value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              placeholder="RELIANCE, TCS, NIFTY…"
-              className="font-mono"
+              onChange={(sym, hit) => {
+                setSymbol(sym);
+                if (hit && hit.lotSize > 1) setQuantity(hit.lotSize);
+              }}
+              placeholder="Search any NSE stock/option…"
             />
             <Select value={side} onChange={(e) => setSide(e.target.value as 'BUY' | 'SELL')}>
               <option value="BUY">BUY (Long)</option>

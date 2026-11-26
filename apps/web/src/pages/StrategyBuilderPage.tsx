@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '../components/ui/button';
+import { SymbolSearchInput } from '../components/SymbolSearchInput';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
@@ -70,27 +71,14 @@ export function StrategyBuilderPage() {
             <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1" />
           </label>
 
-          <label className="text-xs text-slate-400">
-            Underlying / Stock Symbol
-            <Input
+          <div className="text-xs text-slate-400">
+            <span className="mb-1 block">Underlying / Stock Symbol</span>
+            <SymbolSearchInput
               value={underlyingSymbol}
-              onChange={(e) => setUnderlyingSymbol(e.target.value.toUpperCase())}
-              placeholder="NIFTY, BANKNIFTY, RELIANCE, TCS…"
-              className="mt-1 font-mono"
+              onChange={(sym) => setUnderlyingSymbol(sym)}
+              placeholder="Search NSE stock or index…"
             />
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'RELIANCE', 'TCS', 'HDFCBANK'].map((sym) => (
-                <button
-                  key={sym}
-                  type="button"
-                  onClick={() => setUnderlyingSymbol(sym)}
-                  className="rounded border border-slate-800 bg-slate-900 px-1.5 py-0.5 text-[10px] text-slate-300 hover:border-sky-500"
-                >
-                  {sym}
-                </button>
-              ))}
-            </div>
-          </label>
+          </div>
 
           <label className="text-xs text-slate-400">
             Timeframe

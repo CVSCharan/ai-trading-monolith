@@ -23,6 +23,7 @@ import { paperTradingRoutes } from './routes/paper-trading';
 import { liveTradingRoutes } from './routes/live-trading';
 import { growwRoutes } from './routes/groww';
 import { watchlistRoutes } from './routes/watchlist';
+import { instrumentRoutes } from './routes/instruments';
 import { engineRoutes } from './routes/engine';
 import { auditRoutes } from './routes/audit';
 import { authExtraRoutes } from './routes/auth-extra';
@@ -62,6 +63,7 @@ const app = new Elysia()
   .use(liveTradingRoutes)
   .use(growwRoutes)
   .use(watchlistRoutes)
+  .use(instrumentRoutes)
   .use(upstoxRoutes)
   .use(engineRoutes)
   .use(auditRoutes)

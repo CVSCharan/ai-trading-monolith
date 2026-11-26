@@ -45,7 +45,7 @@ export function WatchlistPanel() {
     queryKey: ['watchlist-search', searchQuery],
     enabled: showSearch,
     queryFn: async () => {
-      const res = await fetch(`/api/watchlist/search?q=${encodeURIComponent(searchQuery)}`, {
+      const res = await fetch(`/api/instruments/search?q=${encodeURIComponent(searchQuery)}`, {
         credentials: 'include',
       });
       if (!res.ok) return { results: [] };
