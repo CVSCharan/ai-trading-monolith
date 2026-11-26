@@ -66,7 +66,7 @@
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| [S7-008](sprints/sprint-7.md#S7-008) | Browser visual inspection & responsive audit (DevTools — requires Chrome remote debugging enabled) | 🔴 | 2027-01-16 |
+| *(All Sprint 7 tickets complete!)* | — | — | — |
 
 ---
 
@@ -136,6 +136,7 @@
 | S12-001..S12-005 | Bot Control Center (`/bot`), Strategy Lifecycle Actions, Live Orders/Positions, Audit Trail (`/audit-logs`), & Editable Risk Guardrails | 2026-11-26 |
 | S13-001..S13-004 | Floating Glass Sidebar (`Sidebar`, `Header`, `AppShell`), Global CSS Viewport Lock & `shadcn/ui` Input/Select/Alert/Skeleton | 2026-11-26 |
 | S14-001..S14-004 | Rolling Session Rotation, Max 3 Concurrent Devices, `logout-all`, `change-password`, `08:45 IST` Token Refresh & `ProfilePage` | 2026-11-26 |
+| S7-008 | Chrome DevTools visual & Lighthouse audit complete (dropdown auto-close, WCAG AA contrast, copy fixes) | 2026-11-26 |
 
 ---
 

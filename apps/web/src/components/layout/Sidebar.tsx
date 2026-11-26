@@ -110,7 +110,7 @@ export function Sidebar({
         {NAV_GROUPS.map((group) => (
           <div key={group.title} className="space-y-1">
             {!collapsed && (
-              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                 {group.title}
               </div>
             )}
@@ -132,7 +132,7 @@ export function Sidebar({
                   className={cn(
                     'flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors border',
                     locked
-                      ? 'text-slate-600 cursor-not-allowed border-transparent'
+                      ? 'text-slate-400 opacity-75 cursor-not-allowed border-transparent'
                       : active
                       ? 'bg-emerald-500/15 text-emerald-300 font-medium border-emerald-500/30 shadow-sm'
                       : 'text-slate-300 hover:bg-slate-800/70 hover:text-white border-transparent',
@@ -140,7 +140,7 @@ export function Sidebar({
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span className="flex-1 truncate">{label}</span>}
-                  {!collapsed && locked && <Lock className="h-3 w-3 text-slate-600" />}
+                  {!collapsed && locked && <Lock className="h-3 w-3 text-slate-400" />}
                 </Link>
               );
             })}

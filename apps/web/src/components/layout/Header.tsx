@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bot, ChevronDown, LogOut, Menu, Settings, UserCircle2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -31,6 +31,10 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
   const location = useLocation();
   const { user, isDemo, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
 
   const { data: health } = useQuery<HealthResponse>({
     queryKey: ['api-health'],

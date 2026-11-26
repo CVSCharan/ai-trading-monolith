@@ -120,7 +120,7 @@ export function DashboardPage() {
             <div>
               <CardTitle>Equity Curve</CardTitle>
               <CardDescription>
-                {trades.length > 0 ? 'Paper session equity progression' : 'Sample intraday projection (sign in for live data)'}
+                {trades.length > 0 ? 'Paper session equity progression' : 'Sample intraday projection (launch Paper Bot for live equity)'}
               </CardDescription>
             </div>
             <Badge variant="success">EMA 9/21</Badge>
