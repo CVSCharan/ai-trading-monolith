@@ -212,7 +212,7 @@ export class WebSocketManager {
     this.broadcast(`candle:${symbol}:${timeframe}`, candle);
   }
 
-  private broadcast(event: string, data: any) {
+  broadcast(event: string, data: any) {
     for (const [key, sub] of this.subscriptions) {
       if (sub.symbols.includes(data.symbol) || sub.symbols.includes('*')) {
         for (const callback of sub.callbacks) {
