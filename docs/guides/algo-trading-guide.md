@@ -42,7 +42,7 @@ This guide explains how **AI Trader** executes the 9/21 EMA options strategy end
 ### Phase 4 — Live Trading Safeguards & Kill-Switch Architecture
 
 > [!CAUTION]
-> **LIVE TRADING STATUS: STRICTLY DISABLED (`ENABLE_LIVE_TRADING=false`)**  
+> **LIVE TRADING STATUS: STRICTLY DISABLED (`ENABLE_LIVE_TRADING=false`)**
 > Live capital execution is unsafe and disabled. Critical blockers remain open in the live engine path:
 > - **2FA Blocker**: `/api/live/enable` now fails closed and the engine rejects queued enable commands. A real operator TOTP enrollment and step-up verification flow is still required.
 > - **Signal Misclassification**: Strategy signals (`BUY`/`SELL` with `metadata.isExit`) must be properly mapped; cannot rely on `startsWith('ENTRY')`.

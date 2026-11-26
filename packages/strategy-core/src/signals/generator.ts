@@ -321,6 +321,7 @@ function createExitSignal(
     currentPosition,
     metadata: {
       exitReason,
+      executionMode: config.executionMode,
       isExit: true,
       closingPosition: currentPosition,
       canTrade: true
@@ -434,6 +435,7 @@ export class StreamingSignalGenerator {
                 currentPosition: this.currentPosition,
                 metadata: {
                   reversedFrom: this.currentPosition,
+                  executionMode: this.config.executionMode,
                   canTrade: true
                 }
               });
@@ -495,7 +497,7 @@ export class StreamingSignalGenerator {
         entryWindowValid: true,
         isReversal: false,
         currentPosition: null,
-        metadata: { canTrade: true }
+        metadata: { executionMode: this.config.executionMode, canTrade: true }
       });
 
       this.currentPosition = newPosition;
@@ -586,7 +588,7 @@ export class StreamingSignalGenerator {
       entryWindowValid: true,
       isReversal: false,
       currentPosition: this.currentPosition!,
-      metadata: { exitReason, isExit: true, canTrade: true }
+      metadata: { exitReason, executionMode: this.config.executionMode, isExit: true, canTrade: true }
     };
   }
 

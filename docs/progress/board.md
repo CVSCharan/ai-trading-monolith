@@ -10,12 +10,8 @@
 | Ticket | Title | Sprint | Owner | ETA |
 |--------|-------|--------|-------|-----|
 | S19-005 | Live 2FA: Fail-closed API/engine mitigation done; implement TOTP enrollment & step-up verification | Sprint 19 | Team | 2026-12-05 |
-| S19-006 | Fix signal classification: Replace `startsWith('ENTRY')` with `metadata.isExit` in `LiveTradingEngine` | Sprint 19 | Team | 2026-12-05 |
-| S19-007 | Live option pricing: Wire `optionPriceLookup` for live quotes instead of using underlying index `sig.spotPrice` | Sprint 19 | Team | 2026-12-06 |
-| S19-008 | Square-off fill tracking: Prevent premature `CLOSED` status, record close order ID, wait for broker fill | Sprint 19 | Team | 2026-12-07 |
 | S19-009 | Durable state: Implement PostgreSQL `live_positions` and `live_orders` replacing in-memory `Map` | Sprint 19 | Team | 2026-12-10 |
 | S19-010 | Startup ordering: Run multi-broker reconciliation before starting market feeds and command pollers | Sprint 19 | Team | 2026-12-10 |
-| S19-011 | Integration tests: Test real `BUY`/`SELL` strategy signals with realistic option quotes | Sprint 19 | Team | 2026-12-12 |
 | S19-012 | Regulatory compliance: Algo order tagging (`X-Algo-Name`) & NSE circular INSP77559 undertaking review | Sprint 19 | Team | 2026-12-16 |
 
 ---

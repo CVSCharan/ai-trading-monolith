@@ -66,7 +66,7 @@ const reconciliation = new ReconciliationService(db, logger);
 const marketData = new MarketDataService(growwClient, db, logger);
 const commandProcessor = new CommandProcessor(db, logger, growwClient);
 const paperEngine = new PaperTradingEngine(db, logger, growwClient, marketData);
-const liveEngine = new LiveTradingEngine(db, logger, growwClient, marketData);
+const liveEngine = new LiveTradingEngine(db, logger, growwClient);
 const scheduler = new TradingScheduler(db, logger, growwClient, alerting, wsManager);
 
 // Elysia app for health checks and metrics
