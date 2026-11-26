@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   TrendingUp,
   User,
+  UserCircle2,
   X,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -28,6 +29,7 @@ export const NAV_ITEMS = [
   { to: '/paper-trading', label: 'Paper Trading', icon: Activity, demoAllowed: true },
   { to: '/live-trading', label: 'Live Trading', icon: ShieldAlert, demoAllowed: false },
   { to: '/audit-logs', label: 'Audit Trail', icon: ScrollText, demoAllowed: true },
+  { to: '/profile', label: 'Profile', icon: UserCircle2, demoAllowed: true },
   { to: '/settings', label: 'Settings', icon: Settings, demoAllowed: false },
 ];
 

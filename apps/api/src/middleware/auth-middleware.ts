@@ -8,6 +8,7 @@ import { logger } from '../logger';
 export interface AuthContext {
   userId: string | null;
   userRole: string | null;
+  sessionId: string | null;
   sessionUser: {
     id: string;
     email: string;
@@ -17,7 +18,7 @@ export interface AuthContext {
 }
 
 /**
- * Resolves Better Auth session from request cookies/headers and attaches userId/role.
+ * Resolves Better Auth session from request cookies/headers and attaches userId/role/sessionId.
  */
 export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
   { as: 'global' },
@@ -25,7 +26,7 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
     try {
       const session = await auth.api.getSession({ headers: request.headers });
       if (!session?.user) {
-        return { userId: null, userRole: null, sessionUser: null };
+        return { userId: null, userRole: null, sessionId: null, sessionUser: null };
       }
       const user = session.user as AuthContext['sessionUser'];
       let role = user?.role ?? null;
@@ -40,11 +41,12 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
       return {
         userId: user?.id ?? null,
         userRole: role ?? 'SUPER_ADMIN',
+        sessionId: session.session?.id ?? null,
         sessionUser: user ? { ...user, role: role ?? 'SUPER_ADMIN' } : null,
       };
     } catch (err) {
       logger.warn({ err }, 'Failed to resolve Better Auth session');
-      return { userId: null, userRole: null, sessionUser: null };
+      return { userId: null, userRole: null, sessionId: null, sessionUser: null };
     }
   }
 );

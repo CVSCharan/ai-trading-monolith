@@ -8,6 +8,7 @@ import { TradeAuditorPage } from './pages/TradeAuditorPage';
 import { PaperTradingPage } from './pages/PaperTradingPage';
 import { LiveTradingPage } from './pages/LiveTradingPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoginPage } from './pages/LoginPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -40,6 +41,7 @@ export function App() {
                   <Route path="/paper-trading" element={<PaperTradingPage />} />
                   <Route path="/live-trading" element={<LiveTradingPage />} />
                   <Route path="/audit-logs" element={<AuditLogsPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Routes>
               </AppShell>

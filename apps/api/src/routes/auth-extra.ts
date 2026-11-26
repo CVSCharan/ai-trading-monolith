@@ -8,13 +8,15 @@
 import { Elysia, t } from 'elysia';
 import { db } from '../db';
 import { userProfiles } from '../db/schema';
-import { user, account } from '../db/better-auth-schema';
-import { authPlugin } from '../middleware/auth-middleware';
+import { user, account, session } from '../db/better-auth-schema';
+import { authPlugin, requireAuth, requireRole } from '../middleware/auth-middleware';
 import { createRateLimitPlugin } from '../middleware/rate-limit-middleware';
+import { logAuditEvent } from '../middleware/audit-middleware';
 import { logger } from '../logger';
-import { eq } from 'drizzle-orm';
-import { hashPassword } from 'better-auth/crypto';
+import { and, desc, eq } from 'drizzle-orm';
+import { hashPassword, verifyPassword } from 'better-auth/crypto';
 import { config } from '../config';
+import { MAX_ACTIVE_SESSIONS } from '../auth';
 
 // ── JWT helpers for password reset ───────────────────────────────
 const RESET_SECRET = config.betterAuthSecret;
@@ -189,6 +191,125 @@ export const authExtraRoutes = new Elysia({ prefix: '/api/auth' })
       body: t.Object({
         token: t.String(),
         password: t.String({ minLength: 8, maxLength: 128 }),
+      }),
+    },
+  )
+
+  // ── GET /api/auth/sessions ────────────────────────────────────
+  .get('/sessions', async ({ userId, sessionId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const rows = await db
+      .select({
+        id: session.id,
+        ipAddress: session.ipAddress,
+        userAgent: session.userAgent,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        expiresAt: session.expiresAt,
+      })
+      .from(session)
+      .where(eq(session.userId, userId))
+      .orderBy(desc(session.updatedAt));
+
+    return {
+      maxSessions: MAX_ACTIVE_SESSIONS,
+      sessions: rows.map((r) => ({
+        ...r,
+        isCurrent: r.id === sessionId,
+      })),
+    };
+  })
+
+  // ── DELETE /api/auth/sessions/:id ─────────────────────────────
+  .delete('/sessions/:id', async ({ params, userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const deleted = await db
+      .delete(session)
+      .where(and(eq(session.id, params.id), eq(session.userId, userId)))
+      .returning({ id: session.id });
+
+    if (deleted.length === 0) {
+      set.status = 404;
+      return { error: 'Session not found' };
+    }
+
+    await logAuditEvent({
+      userId,
+      action: 'SESSION_REVOKED',
+      entityType: 'session',
+      entityId: params.id,
+    });
+
+    return { revoked: true, id: params.id };
+  })
+
+  // ── POST /api/auth/logout-all ─────────────────────────────────
+  .post('/logout-all', async ({ userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const deleted = await db
+      .delete(session)
+      .where(eq(session.userId, userId))
+      .returning({ id: session.id });
+
+    await logAuditEvent({
+      userId,
+      action: 'LOGOUT_ALL_DEVICES',
+      entityType: 'user',
+      entityId: userId,
+      details: { revokedCount: deleted.length },
+    });
+
+    return { loggedOutAll: true, revokedCount: deleted.length };
+  })
+
+  // ── POST /api/auth/change-password ────────────────────────────
+  .post(
+    '/change-password',
+    async ({ body, userId, userRole, set }) => {
+      if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+      if (!requireRole(userRole, 'SUPER_ADMIN', set)) {
+        return { error: 'Password change is not available for the demo account.' };
+      }
+
+      const [acc] = await db
+        .select({ id: account.id, password: account.password })
+        .from(account)
+        .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
+        .limit(1);
+
+      if (!acc?.password) {
+        set.status = 400;
+        return { error: 'Credential account not found.' };
+      }
+
+      const valid = await verifyPassword({ hash: acc.password, password: body.currentPassword });
+      if (!valid) {
+        set.status = 400;
+        return { error: 'Current password is incorrect.' };
+      }
+
+      const newHash = await hashPassword(body.newPassword);
+      await db
+        .update(account)
+        .set({ password: newHash, updatedAt: new Date() })
+        .where(eq(account.id, acc.id));
+
+      await logAuditEvent({
+        userId,
+        action: 'PASSWORD_CHANGED',
+        entityType: 'user',
+        entityId: userId,
+      });
+
+      return { updated: true };
+    },
+    {
+      body: t.Object({
+        currentPassword: t.String({ minLength: 1 }),
+        newPassword: t.String({ minLength: 8, maxLength: 128 }),
       }),
     },
   );

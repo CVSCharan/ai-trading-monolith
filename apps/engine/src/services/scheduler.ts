@@ -19,6 +19,17 @@ export class TradingScheduler {
   }
 
   start(): void {
+    // 08:45 IST weekdays — pre-market Groww TOTP token refresh before 09:15 IST open
+    this.tasks.push(
+      cron.schedule(
+        '45 8 * * 1-5',
+        () => {
+          void this.refreshBrokerTokens();
+        },
+        { timezone: 'Asia/Kolkata' }
+      )
+    );
+
     // 15:30 IST weekdays — download & resample today's 1m candles
     this.tasks.push(
       cron.schedule(
@@ -50,6 +61,15 @@ export class TradingScheduler {
     }
     this.tasks = [];
     this.logger.info('TradingScheduler stopped');
+  }
+
+  async refreshBrokerTokens(): Promise<void> {
+    try {
+      await this.growwClient.initialize();
+      this.logger.info('Pre-market Groww TOTP token refreshed successfully');
+    } catch (err) {
+      this.logger.error({ err }, 'Pre-market Groww TOTP token refresh failed');
+    }
   }
 
   async downloadAndResampleToday(): Promise<void> {
