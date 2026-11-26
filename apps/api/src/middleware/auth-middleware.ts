@@ -1,5 +1,8 @@
 import { Elysia } from 'elysia';
+import { eq } from 'drizzle-orm';
 import { auth } from '../auth';
+import { db } from '../db';
+import { userProfiles } from '../db/schema';
 import { logger } from '../logger';
 
 export interface AuthContext {
@@ -25,10 +28,19 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
         return { userId: null, userRole: null, sessionUser: null };
       }
       const user = session.user as AuthContext['sessionUser'];
+      let role = user?.role ?? null;
+      if (!role && user?.id) {
+        const [profile] = await db
+          .select({ role: userProfiles.role })
+          .from(userProfiles)
+          .where(eq(userProfiles.userId, user.id))
+          .limit(1);
+        role = profile?.role ?? 'SUPER_ADMIN';
+      }
       return {
         userId: user?.id ?? null,
-        userRole: user?.role ?? 'viewer',
-        sessionUser: user,
+        userRole: role ?? 'SUPER_ADMIN',
+        sessionUser: user ? { ...user, role: role ?? 'SUPER_ADMIN' } : null,
       };
     } catch (err) {
       logger.warn({ err }, 'Failed to resolve Better Auth session');

@@ -24,23 +24,6 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24,
   },
 
-  user: {
-    additionalFields: {
-      role: {
-        type: 'string',
-        defaultValue: 'SUPER_ADMIN',
-      },
-      timezone: {
-        type: 'string',
-        defaultValue: 'Asia/Kolkata',
-      },
-      paperCapital: {
-        type: 'number',
-        defaultValue: 1000000,
-      },
-    },
-  },
-
   baseURL: config.betterAuthUrl,
   secret: config.betterAuthSecret,
 });
