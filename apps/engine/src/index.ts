@@ -93,6 +93,11 @@ async function startEngine() {
     logger.warn({ err }, 'Groww credentials not initialized — live Groww calls disabled until configured');
   }
 
+  // Forward live market ticks to WebSocket subscribers
+  marketData.onTick((tick) => {
+    wsManager.broadcast('ticks', tick);
+  });
+
   // Start market data WebSocket
   await marketData.connect();
 
