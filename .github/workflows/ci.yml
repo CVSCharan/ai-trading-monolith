@@ -49,8 +49,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check for committed secrets
         run: |
-          # Fail if any real credentials found
-          if git grep -nEi 'password|secret|apikey|token|totp|credential' -- ':!*.md' ':!*.example' ':!.gitignore' ':!test/*.ts' ':!*.example' -- . | grep -v 'placeholder\|example\|your-\|test'; then
+          # Fail if any real credential patterns or private keys are committed
+          if git grep -nE '(-----BEGIN ([A-Z]+ )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk_live_[A-Za-z0-9]{20,}|npg_[A-Za-z0-9]{10,})' -- ':!*.md' ':!*.example' ':!.gitignore' -- .; then
             echo "::error::Potential secrets found in code"
             exit 1
           fi

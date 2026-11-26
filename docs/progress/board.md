@@ -9,7 +9,7 @@
 
 | Ticket | Title | Sprint | Owner | ETA |
 |--------|-------|--------|-------|-----|
-| *(All active sprint coding complete — see TODO for Sprint 8)* | — | — | — | — |
+| [S0-004](sprints/sprint-immediate.md#S0-004) | Set branch protection (CI required) | Immediate | @dev | 2026-11-26 |
 
 ---
 
@@ -129,6 +129,7 @@
 | S10-001..S10-005 | Dual-Broker Architecture: Upstox Analytics + v3 Trading & Groww TOTP | 2026-11-26 |
 | S8-001..S8-005 | Groww Pro Features: Custom Watchlist (`watchlists`), Margins (`/api/groww/margins`), OCO/GTT (`/api/groww/smart-order`), Historical Candles (`/api/groww/candles`), Live Positions (`/api/groww/positions`) | 2026-11-26 |
 | S11-001..S11-004 | Engine `BrokerRouter` (`GrowwBrokerAdapter` + `UpstoxClient`), `UpstoxMarketDataFeed` WS v3, & `OptionChainPage` UI | 2026-11-26 |
+| S0-002..S0-003 | Fix CI Secret Scan & verify UTC + America/New_York test matrix passes | 2026-11-26 |
 
 ---
 
