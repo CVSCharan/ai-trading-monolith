@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { CheckCircle2, ChevronDown, KeyRound, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Activity, CheckCircle2, ChevronDown, KeyRound, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -16,6 +16,17 @@ interface GrowwStatusResponse {
   lastRefreshAt?: string;
 }
 
+interface UpstoxStatusResponse {
+  analyticsConnected: boolean;
+  tradingConnected: boolean;
+  oauthConfigured: boolean;
+  maskedAnalyticsToken: string | null;
+  maskedAccessToken: string | null;
+  algoName: string | null;
+  activeDataBroker: 'groww' | 'upstox';
+  activeExecutionBroker: 'groww' | 'upstox';
+}
+
 export function SettingsPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,6 +40,26 @@ export function SettingsPage() {
     queryFn: async () => {
       const res = await fetch('/api/groww/status', { credentials: 'include' });
       if (!res.ok) return { connected: false, source: 'none' };
+      return res.json();
+    },
+  });
+
+  const { data: upstoxStatus, refetch: refetchUpstox } = useQuery<UpstoxStatusResponse>({
+    queryKey: ['upstox-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/upstox/status', { credentials: 'include' });
+      if (!res.ok) {
+        return {
+          analyticsConnected: false,
+          tradingConnected: false,
+          oauthConfigured: false,
+          maskedAnalyticsToken: null,
+          maskedAccessToken: null,
+          algoName: null,
+          activeDataBroker: 'groww',
+          activeExecutionBroker: 'groww',
+        };
+      }
       return res.json();
     },
   });
@@ -213,6 +244,66 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex-row items-start justify-between space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-violet-400" />
+              Upstox Analytics &amp; Trading (API v3)
+            </CardTitle>
+            <CardDescription>
+              1-year read-only Analytics Token for market data &amp; option chain; Static IP + OAuth required for v3 live orders
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={upstoxStatus?.analyticsConnected ? 'success' : 'warning'}>
+              {upstoxStatus?.analyticsConnected ? 'Analytics Linked (.env)' : 'Analytics Not Set'}
+            </Badge>
+            <Badge variant={upstoxStatus?.tradingConnected ? 'success' : 'info'}>
+              {upstoxStatus?.tradingConnected ? 'v3 Trading Ready' : 'Read-Only'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+              <div className="text-slate-400">Active Data Broker</div>
+              <div className="mt-1 font-mono font-semibold uppercase text-emerald-400">
+                {upstoxStatus?.activeDataBroker ?? 'groww'}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+              <div className="text-slate-400">Active Execution Broker</div>
+              <div className="mt-1 font-mono font-semibold uppercase text-sky-400">
+                {upstoxStatus?.activeExecutionBroker ?? 'groww'}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+              <div className="text-slate-400">Analytics Token (.env)</div>
+              <div className="mt-1 font-mono text-slate-200">
+                {upstoxStatus?.maskedAnalyticsToken ?? 'Not configured'}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+              <div className="text-slate-400">Algo Name (X-Algo-Name)</div>
+              <div className="mt-1 font-mono text-slate-200">
+                {upstoxStatus?.algoName ?? '—'}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">
+            <span>
+              Set <code className="text-slate-200">UPSTOX_ANALYTICS_TOKEN</code> in <code className="text-slate-200">.env</code> for 1-year Option Chain, Historical Candles &amp; Quotes (no Static IP needed).
+            </span>
+            <Button variant="outline" size="sm" onClick={() => void refetchUpstox()}>
+              <RefreshCw className="h-3.5 w-3.5" />
+              Refresh Status
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

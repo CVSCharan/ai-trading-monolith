@@ -24,6 +24,7 @@ import { liveTradingRoutes } from './routes/live-trading';
 import { growwRoutes } from './routes/groww';
 import { engineRoutes } from './routes/engine';
 import { authExtraRoutes } from './routes/auth-extra';
+import { upstoxRoutes } from './routes/upstox';
 import { auth } from './auth';
 
 const app = new Elysia()
@@ -58,6 +59,7 @@ const app = new Elysia()
   .use(paperTradingRoutes)
   .use(liveTradingRoutes)
   .use(growwRoutes)
+  .use(upstoxRoutes)
   .use(engineRoutes)
   .use(authExtraRoutes)
   .all('/api/auth/*', ({ request }) => auth.handler(request))

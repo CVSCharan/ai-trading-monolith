@@ -9,7 +9,7 @@
 
 | Ticket | Title | Sprint | Owner | ETA |
 |--------|-------|--------|-------|-----|
-| [S9-001..S9-011](sprints/sprint-9.md) | Auth, RBAC & Demo Account | Sprint 9 | @dev | 2026-11-28 |
+| *(All active sprint coding complete — see TODO for Sprint 8)* | — | — | — | — |
 
 ---
 
@@ -129,6 +129,8 @@
 | S5-005..014 | Implement `useWebSocket`, `TradeCandlestickChart`, `TradeAuditorPage` (`←`/`→`), `StrategyBuilderPage`, `BacktestResultsPage`, `PaperTradingPage`, `SettingsPage`, `App.tsx` | 2026-11-26 |
 | S6-001..010, S6-013 | Implement `GET /api/live/gates`, `LiveTradingEngine` (5 risk checks, idempotency, partial fills, 15:00 square-off), `AlertingService`, `emergency-stop.ts`, `Dockerfile`, `vercel.json`, crash handlers, `live-engine.test.ts` | 2026-11-26 |
 | S7-001..007 | Fix Tailwind CWD resolution (`17.06 kB` CSS, 0 warnings), add `shadcn/ui` primitives, `PortfolioBar`, `SignalFeed`, `EquityAreaChart`, `DashboardPage`, `TradeContextPanel`, `LiveTradingPage`, `.env`-aware `SettingsPage` + `/api/groww/status` & `/sync` fallback | 2026-11-26 |
+| S9-001..S9-011 | Auth, RBAC (`SUPER_ADMIN` / `DEMO`), Login, Forgot/Reset Password | 2026-11-26 |
+| S10-001..S10-005 | Dual-Broker Architecture: Upstox Analytics + v3 Trading & Groww TOTP | 2026-11-26 |
 
 ---
 
