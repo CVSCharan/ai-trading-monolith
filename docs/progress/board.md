@@ -139,6 +139,7 @@
 | S7-008 | Chrome DevTools visual & Lighthouse audit complete (dropdown auto-close, WCAG AA contrast, copy fixes) | 2026-11-26 |
 | S15-001..S15-005 | `LiveBarAggregator`, NSE Holiday & Expiry Guard, Telegram/Webhook Alerts, Header Live Ticker & Backtest → Bot Promote | 2026-11-26 |
 | S16-001..S16-004 | Unlimited Any-Stock Paper Trading (`/paper/order`, `/close/:id`, `/reset`, Trade History, Any-Symbol Strategy) | 2026-11-26 |
+| S17-001..S17-003 | Live Quote Auto-Pricing (`GET /api/market/quote`), Auto-LTP Paper Orders & Dynamic Watchlist Feed | 2026-11-26 |
 
 ---
 

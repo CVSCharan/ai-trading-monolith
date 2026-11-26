@@ -1,4 +1,5 @@
 import type pino from 'pino';
+import { watchlists } from '../../../api/src/db/schema';
 import type { GrowwClient } from './groww-client';
 import { createBrokerRouter, type BrokerRouter } from './broker-router';
 import { LiveBarAggregator, type ClosedLiveBar } from './live-bar-aggregator';
@@ -53,14 +54,32 @@ export class MarketDataService {
   }
 
   async connect(): Promise<void> {
+    const keys = new Set<string>(['NSE_INDEX|Nifty 50', 'NSE_INDEX|Nifty Bank']);
+
+    try {
+      const dbAny = this.db as { select?: Function } | null;
+      if (dbAny && typeof dbAny.select === 'function') {
+        const pinned = (await (this.db as any)
+          .select({ instrumentKey: watchlists.instrumentKey })
+          .from(watchlists)) as Array<{ instrumentKey?: string | null }>;
+        for (const row of pinned) {
+          if (row.instrumentKey) keys.add(row.instrumentKey);
+        }
+      }
+    } catch (err) {
+      this.logger.warn({ err }, 'Could not load watchlist instrument keys; using defaults');
+    }
+
+    const instrumentKeys = Array.from(keys);
     this.logger.info(
       {
         activeDataBroker: this.router.activeDataBrokerName,
         activeExecutionBroker: this.router.activeExecutionBrokerName,
+        subscriptions: instrumentKeys.length,
       },
       'MarketDataService connecting',
     );
-    await this.upstoxFeed.connect(['NSE_INDEX|Nifty 50', 'NSE_INDEX|Nifty Bank']);
+    await this.upstoxFeed.connect(instrumentKeys);
   }
 
   async disconnect(): Promise<void> {

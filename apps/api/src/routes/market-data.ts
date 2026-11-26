@@ -1,8 +1,18 @@
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { and, asc, desc, eq, gte, lte } from 'drizzle-orm';
+import { UpstoxClient } from '@groww-trading/shared';
+import { config } from '../config';
 import { db } from '../db';
 import { candles1m, candlesResampled, instruments } from '../db/schema';
 import { authPlugin, requireAuth } from '../middleware/auth-middleware';
+
+function isIndianMarketOpen(now = new Date()): boolean {
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const day = ist.getDay();
+  if (day === 0 || day === 6) return false;
+  const mins = ist.getHours() * 60 + ist.getMinutes();
+  return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30;
+}
 
 export const marketDataRoutes = new Elysia({ prefix: '/api/market' })
   .use(authPlugin)
@@ -95,4 +105,29 @@ export const marketDataRoutes = new Elysia({ prefix: '/api/market' })
       .limit(1);
 
     return { symbol: params.symbol, quote: latest ?? null };
-  });
+  })
+  .get(
+    '/quote',
+    async ({ query, userId, set }) => {
+      if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+      const marketOpen = isIndianMarketOpen();
+      try {
+        const client = new UpstoxClient({
+          analyticsToken: config.upstox.analyticsToken,
+          accessToken: config.upstox.accessToken,
+        });
+        const quotes = await client.getQuote([query.instrumentKey]);
+        const quote = quotes[query.instrumentKey] ?? Object.values(quotes)[0] ?? null;
+        return { instrumentKey: query.instrumentKey, marketOpen, quote };
+      } catch (err) {
+        return {
+          instrumentKey: query.instrumentKey,
+          marketOpen,
+          quote: null,
+          error: err instanceof Error ? err.message : 'Quote unavailable',
+        };
+      }
+    },
+    { query: t.Object({ instrumentKey: t.String({ minLength: 1 }) }) },
+  );

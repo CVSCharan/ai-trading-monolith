@@ -17,10 +17,31 @@ export function PaperTradingPage() {
   const { connected, events } = useWebSocket(['ticks', 'signals', 'paper_updates']);
 
   const [symbol, setSymbol] = useState('RELIANCE');
+  const [instrumentKey, setInstrumentKey] = useState('NSE_EQ|INE002A01018');
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY');
   const [quantity, setQuantity] = useState(10);
   const [price, setPrice] = useState(2950);
+  const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
   const [feedback, setFeedback] = useState<{ variant: 'success' | 'danger' | 'info'; text: string } | null>(null);
+
+  const fetchLiveQuote = async (key: string) => {
+    try {
+      const res = await fetch(`/api/market/quote?instrumentKey=${encodeURIComponent(key)}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const json = (await res.json()) as {
+        marketOpen?: boolean;
+        quote?: { ltp?: number } | null;
+      };
+      if (json.marketOpen !== undefined) setMarketOpen(json.marketOpen);
+      if (json.quote?.ltp && json.quote.ltp > 0) {
+        setPrice(json.quote.ltp);
+      }
+    } catch {
+      // keep manual price if offline
+    }
+  };
 
   const { data: portfolioData } = useQuery<{ portfolio: Record<string, any> | null }>({
     queryKey: ['paper-portfolio'],
@@ -129,6 +150,11 @@ export function PaperTradingPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {marketOpen !== null && (
+            <Badge variant={marketOpen ? 'success' : 'warning'}>
+              NSE: {marketOpen ? 'OPEN' : 'CLOSED'}
+            </Badge>
+          )}
           <Badge variant={connected ? 'success' : 'warning'}>
             WS: {connected ? 'Connected' : 'Disconnected'}
           </Badge>
@@ -184,7 +210,11 @@ export function PaperTradingPage() {
               value={symbol}
               onChange={(sym, hit) => {
                 setSymbol(sym);
-                if (hit && hit.lotSize > 1) setQuantity(hit.lotSize);
+                if (hit) {
+                  setInstrumentKey(hit.instrumentKey);
+                  if (hit.lotSize > 1) setQuantity(hit.lotSize);
+                  void fetchLiveQuote(hit.instrumentKey);
+                }
               }}
               placeholder="Search any NSE stock/option…"
             />
@@ -207,14 +237,25 @@ export function PaperTradingPage() {
               onChange={(e) => setPrice(Number(e.target.value))}
               placeholder="Price (₹)"
             />
-            <Button
-              variant="primary"
-              onClick={() => placeOrderMutation.mutate()}
-              disabled={placeOrderMutation.isPending || !symbol || quantity <= 0 || price <= 0}
-            >
-              <Send className="h-4 w-4" />
-              Place Paper Order
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => void fetchLiveQuote(instrumentKey)}
+              >
+                LTP
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1"
+                onClick={() => placeOrderMutation.mutate()}
+                disabled={placeOrderMutation.isPending || !symbol || quantity <= 0 || price <= 0}
+              >
+                <Send className="h-4 w-4" />
+                Place Paper Order
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </RoleGuard>
