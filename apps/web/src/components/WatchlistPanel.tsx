@@ -185,14 +185,15 @@ export function WatchlistPanel() {
                     <TrendingUp className="h-3.5 w-3.5" />
                   </Link>
                   {!isDemo && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => removeMutation.mutate(item.id)}
                       title="Remove from watchlist"
-                      className="rounded p-1.5 text-slate-500 hover:bg-slate-800 hover:text-rose-400"
+                      className="h-7 w-7 p-0 text-slate-500 hover:text-rose-400 hover:bg-slate-800"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

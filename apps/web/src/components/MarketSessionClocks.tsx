@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Bell, Clock, Globe, X, AlertTriangle, CheckCircle, ShieldAlert } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { SkeletonMarketGrid } from './ui/skeleton';
 import { QueryErrorState } from './ui/query-feedback';
 import { fetchJson } from '../lib/api';
@@ -113,7 +114,6 @@ export function MarketAlertToastBanner() {
  * Compact Header Clock & Session Status Dropdown
  */
 export function MarketClockHeaderPill() {
-  const [open, setOpen] = useState(false);
   const { data, isLoading, error, refetch } = useMarketSessions();
   const sessions = data?.sessions ?? [];
 
@@ -150,85 +150,80 @@ export function MarketClockHeaderPill() {
   };
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${getStatusColor(
-          primary?.status
-        )}`}
-        title="Multi-Market Trading Sessions & Clocks"
-      >
-        <Clock className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline font-semibold">NSE:</span>
-        <span>
-          {isLoading && !data ? 'LOADING'
-            : error && !data ? 'UNKNOWN'
-              : primary?.status === 'OPEN'
-            ? 'OPEN'
-            : primary?.status === 'CLOSING_SOON'
-              ? 'CLOSING SOON'
-              : primary?.status === 'PRE_OPEN'
-                ? 'PRE-OPEN'
-                : 'CLOSED'}
-        </span>
-        {primary?.isOpen && primary?.minutesToClose !== undefined && (
-          <span className="hidden md:inline font-mono opacity-80">
-            ({Math.floor(primary.minutesToClose / 60)}h {primary.minutesToClose % 60}m)
+    <Popover>
+      <PopoverTrigger>
+        <div
+          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${getStatusColor(
+            primary?.status
+          )}`}
+          title="Multi-Market Trading Sessions & Clocks"
+        >
+          <Clock className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline font-semibold">NSE:</span>
+          <span>
+            {isLoading && !data ? 'LOADING'
+              : error && !data ? 'UNKNOWN'
+                : primary?.status === 'OPEN'
+              ? 'OPEN'
+              : primary?.status === 'CLOSING_SOON'
+                ? 'CLOSING SOON'
+                : primary?.status === 'PRE_OPEN'
+                  ? 'PRE-OPEN'
+                  : 'CLOSED'}
           </span>
-        )}
-      </button>
+          {primary?.isOpen && primary?.minutesToClose !== undefined && (
+            <span className="hidden md:inline font-mono opacity-80">
+              ({Math.floor(primary.minutesToClose / 60)}h {primary.minutesToClose % 60}m)
+            </span>
+          )}
+        </div>
+      </PopoverTrigger>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-slate-800 bg-slate-950/95 p-3 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
-              <div className="flex items-center gap-2 text-xs font-semibold text-white">
-                <Globe className="h-3.5 w-3.5 text-sky-400" />
-                <span>Market Session Clocks (IST)</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {data?.serverTimeIST ? data.serverTimeIST.split(',')[1]?.trim() : ''}
-              </span>
-            </div>
-
-            <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
-              {error && <QueryErrorState error={error} onRetry={() => void refetch()} title="Market session data is unavailable" />}
-              {sessions.map((m) => (
-                <div
-                  key={m.id}
-                  className="rounded-lg border border-slate-800/80 bg-slate-900/50 p-2 text-xs flex items-center justify-between gap-2 hover:bg-slate-800/40 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <div className="font-medium text-slate-200 truncate">{m.name}</div>
-                    <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                      <span>{m.exchange}</span>
-                      <span>·</span>
-                      <span className="font-mono">{m.openIST} - {m.closeIST} IST</span>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div>{getStatusBadge(m.status)}</div>
-                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                      {m.nextEvent}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-              <span className="flex items-center gap-1">
-                <ShieldAlert className="h-3 w-3 text-amber-400" />
-                Automated lifecycle alerts active
-              </span>
-              <span className="text-slate-500">DST aware</span>
-            </div>
+      <PopoverContent align="end" className="w-80 sm:w-96 p-3">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-white">
+            <Globe className="h-3.5 w-3.5 text-sky-400" />
+            <span>Market Session Clocks (IST)</span>
           </div>
-        </>
-      )}
-    </div>
+          <span className="text-[10px] text-slate-400 font-mono">
+            {data?.serverTimeIST ? data.serverTimeIST.split(',')[1]?.trim() : ''}
+          </span>
+        </div>
+
+        <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+          {error && <QueryErrorState error={error} onRetry={() => void refetch()} title="Market session data is unavailable" />}
+          {sessions.map((m) => (
+            <div
+              key={m.id}
+              className="rounded-lg border border-slate-800/80 bg-slate-900/50 p-2 text-xs flex items-center justify-between gap-2 hover:bg-slate-800/40 transition-colors"
+            >
+              <div className="min-w-0">
+                <div className="font-medium text-slate-200 truncate">{m.name}</div>
+                <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                  <span>{m.exchange}</span>
+                  <span>·</span>
+                  <span className="font-mono">{m.openIST} - {m.closeIST} IST</span>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div>{getStatusBadge(m.status)}</div>
+                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                  {m.nextEvent}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+          <span className="flex items-center gap-1">
+            <ShieldAlert className="h-3 w-3 text-amber-400" />
+            Automated lifecycle alerts active
+          </span>
+          <span className="text-slate-500">DST aware</span>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

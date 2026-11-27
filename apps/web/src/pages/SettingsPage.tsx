@@ -469,13 +469,13 @@ export function SettingsPage() {
                 <div className="space-y-1.5 pt-1">
                   <label className="text-slate-300 font-medium">Verify 6-digit Code to Activate:</label>
                   <div className="flex gap-2">
-                    <input
+                    <Input
                       type="text"
                       maxLength={6}
                       placeholder="e.g. 123456"
                       value={twoFactorVerifyCode}
                       onChange={(e) => setTwoFactorVerifyCode(e.target.value.replace(/\D/g, ''))}
-                      className="w-36 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-center text-sm font-semibold text-white tracking-widest focus:border-sky-500 focus:outline-none"
+                      className="w-36 font-mono text-center text-sm font-semibold text-white tracking-widest focus:border-sky-500"
                     />
                     <Button
                       variant="primary"
@@ -536,13 +536,13 @@ export function SettingsPage() {
                       Disabling 2FA will immediately fail live trading gates. Enter your current 6-digit TOTP code to confirm.
                     </p>
                     <div className="flex gap-2 pt-1">
-                      <input
+                      <Input
                         type="text"
                         maxLength={6}
                         placeholder="6-digit code"
                         value={twoFactorDisableCode}
                         onChange={(e) => setTwoFactorDisableCode(e.target.value.replace(/\D/g, ''))}
-                        className="w-32 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-center text-sm font-semibold text-white tracking-widest focus:border-rose-500 focus:outline-none"
+                        className="w-32 font-mono text-center text-sm font-semibold text-white tracking-widest focus:border-rose-500"
                       />
                       <Button
                         variant="danger"
