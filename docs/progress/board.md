@@ -1,6 +1,6 @@
-# 🗃️ Kanban Board — Groww AI Trading
+# 🗃️ Kanban Board — AI Trader
 
-> Updated: 2026-11-26 IST  
+> Updated: 2026-11-28 IST  
 > Columns: **TODO** · **IN PROGRESS** · **REVIEW/BLOCKED** · **DONE**
 
 ---
@@ -9,147 +9,34 @@
 
 | Ticket | Title | Sprint | Owner | ETA |
 |--------|-------|--------|-------|-----|
-| S19-006 | Signal mapping: core path hardened; durable fills and reversal lifecycle still pending | Sprint 19 | Team | 2026-12-10 |
-| S19-007 | Live option quotes: callback exists; production quote source and instrument mapping are not wired | Sprint 19 | Team | 2026-12-10 |
-| S19-008 | Square-off fills: mocked state handling exists; broker update stream and durable state pending | Sprint 19 | Team | 2026-12-10 |
-| S19-005 | Live 2FA: Fail-closed API/engine mitigation done; implement TOTP enrollment & step-up verification | Sprint 19 | Team | 2026-12-05 |
-| S19-009 | Durable state: Implement PostgreSQL `live_positions` and `live_orders` replacing in-memory `Map` | Sprint 19 | Team | 2026-12-10 |
-| S19-010 | Startup ordering done; durable hydration and complete broker reconciliation semantics pending | Sprint 19 | Team | 2026-12-10 |
-| S19-011 | Broker integration tests: current engine tests are unit-level; add end-to-end broker/event and recovery coverage | Sprint 19 | Team | 2026-12-16 |
-| S19-012 | Regulatory compliance: Algo order tagging (`X-Algo-Name`) & NSE circular INSP77559 undertaking review | Sprint 19 | Team | 2026-12-16 |
+| S19-007 | Live option quotes: Wire `optionPriceLookup` in `apps/engine/src/index.ts` from `marketData` / `Upstox` quotes | Sprint 19 | Team | 2026-12-05 |
+| S19-008 | Broker order fill stream: Pipe broker order update WebSocket events into `liveEngine.handleOrderUpdate` | Sprint 19 | Team | 2026-12-08 |
+| S19-011 | End-to-end integration test: Full bar → quote → order → fill → square-off test simulation | Sprint 19 | Team | 2026-12-10 |
+| S19-013 | Explicit reversal signal lifecycle (sequential close-then-open handling) | Sprint 19 | Team | 2026-12-10 |
 
 ---
 
-## 📋 TODO — Sprint 1.5 (Nov 26–28)
-
-| Ticket | Title | Priority | ETA |
-|--------|-------|----------|-----|
-| *(All Sprint 1.5 coding tickets complete — only `S0-001`..`S0-004` GitHub push + CI remain)* | — | — | — |
-
----
-
-## 📋 TODO — Sprint 2 (Dec 1–6)
-
-| Ticket | Title | Priority | ETA |
-|--------|-------|----------|-----|
-| *(All Sprint 2 tickets complete!)* | — | — | — |
-
----
-
-## 📋 TODO — Sprint 3 (Dec 8–14)
-
-| Ticket | Title | Priority | ETA |
-|--------|-------|----------|-----|
-| *(All Sprint 3 tickets complete!)* | — | — | — |
-
----
-
-## 📋 TODO — Sprint 4 (Dec 15–22)
-
-| Ticket | Title | Priority | ETA |
-|--------|-------|----------|-----|
-| *(All Sprint 4 tickets complete!)* | — | — | — |
-
----
-
-## 📋 TODO — Sprint 5 (Dec 23–Jan 1)
-
-| Ticket | Title | Priority | ETA |
-|--------|-------|----------|-----|
-| [S5-015](sprints/sprint-5.md#S5-015) | Sprint 5 checklist + mobile responsive audit | 🔴 | 2027-01-01 |
-
----
-
-## 📋 TODO — Sprint 6 (Jan 5–11)
-
-| Ticket | Title | Priority | ETA |
-|--------|-------|----------|-----|
-| [S6-011](sprints/sprint-6.md#S6-011) | Pre-live validation checklist (12 items, requires 100+ paper trades) | 🔴 | 2027-01-10 |
-| [S6-012](sprints/sprint-6.md#S6-012) | Final production deployment + smoke test | 🔴 | 2027-01-11 |
-
----
-
-## 📋 TODO — Sprint 7 (Jan 12–16 · UI Polish & Browser Audit)
-
-| Ticket | Title | Priority | ETA |
-|--------|-------|----------|-----|
-| *(All Sprint 7 tickets complete!)* | — | — | — |
-
----
-
-## 📋 TODO — Sprint 8 (Jan 17–21 · Groww Pro Features)
-
-| Ticket | Title | Priority | ETA |
-|--------|-------|----------|-----|
-| *(All Sprint 8 tickets complete!)* | — | — | — |
-
----
-
-## ✅ DONE
+## ✅ DONE (Recent S19 Releases)
 
 | Ticket | Title | Completed |
 |--------|-------|-----------|
-| PRE-001 | TS1128 fix on updateEMAs() private method | 2026-11-25 |
-| PRE-002 | Duplicate functions removed (test-utils.ts, timezone.ts) | 2026-11-25 |
-| PRE-003 | turbo.json pipeline→tasks (Turbo 2.x) | 2026-11-25 |
-| PRE-004 | packages/shared/tsconfig.json created | 2026-11-25 |
-| PRE-005 | Package exports dist/index.js → src/index.ts | 2026-11-25 |
-| PRE-006 | Duplicate docs/strategy-docs.md removed | 2026-11-25 |
-| PRE-007 | Cost config: STT 0.001, exchange 0.0005 | 2026-11-25 |
-| PRE-008 | EMA tests 10/10 passing (UTC+EDT matrix) | 2026-11-25 |
-| PRE-009 | Resample tests 10/10 passing (UTC+EDT matrix) | 2026-11-25 |
-| PRE-010 | GitHub Actions CI matrix configured | 2026-11-25 |
-| PRE-011 | Git repo clean — 6 commits, conventional format | 2026-11-25 |
-| S1-001 | Replace CryptoJS → AES-256-GCM + encryption tests | 2026-11-26 |
-| S1-002 | Fix relative import in instrument-resolver.ts | 2026-11-26 |
-| S1-003 | Fix StreamingSignalGenerator bracket bug (TS1128 + deadlock) | 2026-11-26 |
-| S1-007 | Create apps/api/src/config.ts | 2026-11-26 |
-| S1-008 | Create apps/api/src/logger.ts | 2026-11-26 |
-| S1-011 | Align Groww auth schema & client to TOTP Token + QR flow | 2026-11-26 |
-| S1-004 | Fix createExitSignal optionSymbol/strike/expiry state | 2026-11-26 |
-| S1-005 | Fix reconciliation realizedPnl + closedReason + audit log | 2026-11-26 |
-| S1-006 | Create all 9 API route stubs + wire into index.ts | 2026-11-26 |
-| S1-009 | Add regression test: entry fires after exit | 2026-11-26 |
-| S1-010 | Add regression test: exit signal carries optionSymbol | 2026-11-26 |
-| S0-001 | Pushed commits to GitHub (`origin/main`) | 2026-11-26 |
-| S2-001 | Write `crossover.test.ts` (6 test cases, 98.15% line cov) | 2026-11-26 |
-| S2-003 | Write `instrument-resolver.test.ts` (6 test cases) | 2026-11-26 |
-| S2-002 | Complete `generator.test.ts` (8 cases, 98.21% line cov) | 2026-11-26 |
-| S2-007 | Add `buildInstrumentIndex()` O(1) lookup to `instrument-resolver` | 2026-11-26 |
-| S2-004 | Implement `backtest/engine.ts` (`runBacktest()`, 100% cov) | 2026-11-26 |
-| S2-005 | Implement `backtest/metrics.ts` (Sharpe, Sortino, Calmar, DD) | 2026-11-26 |
-| S2-006 | Implement `backtest/reporter.ts` (equity curve, daily returns, report) | 2026-11-26 |
-| S2-008 | Write `backtest.test.ts` (5 multi-day, P&L, 15:00 square-off cases) | 2026-11-26 |
-| S3-001..004 | Implement `auth`, `rate-limit`, `audit`, `risk` middleware | 2026-11-26 |
-| S3-015..016 | Add correlation IDs, global error handler, DB `/health` ping & graceful shutdown | 2026-11-26 |
-| S3-005..007 | Implement `groww`, `strategy` (CRUD+clone), `backtest` (run+trades+equity) routes | 2026-11-26 |
-| S3-008..011 | Implement `market-data`, `paper-trading`, `live-trading` (gated), `trade` (auditor) routes | 2026-11-26 |
-| S3-012..014 | Implement `ws-manager.ts`, `backtest-runner.ts`, `user.ts`, `engine.ts` (Sprint 3 complete) | 2026-11-26 |
-| S4-001..004, S4-012 | Implement `command-processor.ts` (`loadStrategy`, `loadInstruments`, `closeAll*`, `cancelAllOrders`) & `closedReason` schema | 2026-11-26 |
-| S4-005..011 | Implement `websocket-manager.ts` reconnect/backfill, `paper-trading.ts` (MTM + risk + fills), `scheduler.ts` (IST cron) | 2026-11-26 |
-| S4-013..014 | Add `paper-engine.test.ts` (Sprint 4 complete) | 2026-11-26 |
-| S5-001..004 | Scaffold `apps/web` (Vite + React 18 + Tailwind + Router + TanStack Query + API proxy) | 2026-11-26 |
-| S5-005..014 | Implement `useWebSocket`, `TradeCandlestickChart`, `TradeAuditorPage` (`←`/`→`), `StrategyBuilderPage`, `BacktestResultsPage`, `PaperTradingPage`, `SettingsPage`, `App.tsx` | 2026-11-26 |
-| S6-001..010, S6-013 | Implement `GET /api/live/gates`, `LiveTradingEngine` (5 risk checks, idempotency, partial fills, 15:00 square-off), `AlertingService`, `emergency-stop.ts`, `Dockerfile`, `vercel.json`, crash handlers, `live-engine.test.ts` | 2026-11-26 |
-| S7-001..007 | Fix Tailwind CWD resolution (`17.06 kB` CSS, 0 warnings), add `shadcn/ui` primitives, `PortfolioBar`, `SignalFeed`, `EquityAreaChart`, `DashboardPage`, `TradeContextPanel`, `LiveTradingPage`, `.env`-aware `SettingsPage` + `/api/groww/status` & `/sync` fallback | 2026-11-26 |
-| S9-001..S9-011 | Auth, RBAC (`SUPER_ADMIN` / `DEMO`), Login, Forgot/Reset Password | 2026-11-26 |
-| S10-001..S10-005 | Dual-Broker Architecture: Upstox Analytics + v3 Trading & Groww TOTP | 2026-11-26 |
-| S8-001..S8-005 | Groww Pro Features: Custom Watchlist (`watchlists`), Margins (`/api/groww/margins`), OCO/GTT (`/api/groww/smart-order`), Historical Candles (`/api/groww/candles`), Live Positions (`/api/groww/positions`) | 2026-11-26 |
-| S11-001..S11-004 | Engine `BrokerRouter` (`GrowwBrokerAdapter` + `UpstoxClient`), `UpstoxMarketDataFeed` WS v3, & `OptionChainPage` UI | 2026-11-26 |
-| S0-002..S0-003 | Fix CI Secret Scan & verify UTC + America/New_York test matrix passes | 2026-11-26 |
-| S0-004 | Enable branch protection on `main` requiring all 5 CI status checks | 2026-11-26 |
-| S2-009 | Coverage gate verified: `upstox-client` 100%, `resample` 99.17%, core strategy modules ≥97% (67/67 tests) | 2026-11-26 |
-| S6-011 / S6-012 | Add `scripts/smoke-test.ts`, `apps/api/Dockerfile`, `production-checklist.md` & verify 1-year backtest (313ms) | 2026-11-26 |
-| S12-001..S12-005 | Bot Control Center (`/bot`), Strategy Lifecycle Actions, Live Orders/Positions, Audit Trail (`/audit-logs`), & Editable Risk Guardrails | 2026-11-26 |
-| S13-001..S13-004 | Floating Glass Sidebar (`Sidebar`, `Header`, `AppShell`), Global CSS Viewport Lock & `shadcn/ui` Input/Select/Alert/Skeleton | 2026-11-26 |
-| S14-001..S14-004 | Rolling Session Rotation, Max 3 Concurrent Devices, `logout-all`, `change-password`, `08:45 IST` Token Refresh & `ProfilePage` | 2026-11-26 |
-| S7-008 | Chrome DevTools visual & Lighthouse audit complete (dropdown auto-close, WCAG AA contrast, copy fixes) | 2026-11-26 |
-| S15-001..S15-005 | `LiveBarAggregator`, NSE Holiday & Expiry Guard, Telegram/Webhook Alerts, Header Live Ticker & Backtest → Bot Promote | 2026-11-26 |
-| S16-001..S16-004 | Unlimited Any-Stock Paper Trading (`/paper/order`, `/close/:id`, `/reset`, Trade History, Any-Symbol Strategy) | 2026-11-26 |
-| S17-001..S17-003 | Live Quote Auto-Pricing (`GET /api/market/quote`), Auto-LTP Paper Orders & Dynamic Watchlist Feed | 2026-11-26 |
-| S18-001..S18-004 | Multi-Market Session Clocks, US-DST Aware Schedules, Engine Lifecycle Crons & In-App Alerts | 2026-11-26 |
-| S19-001..S19-004 | Phase 1 Hardening: Emergency Stop Async Acknowledgment, Bounded Limit Order Square-Offs (`EMERGENCY_LIMIT_BUFFER_PCT`), Exit-Time 10% Drawdown Gate & Glassmorphic Skeletons | 2026-11-26 |
+| S19-005 | Operator 2FA setup, verify, disable & dynamic step-up TOTP verification on `/api/live/enable` | 2026-11-28 |
+| S19-009 | Durable PostgreSQL live state (`live_fills` & `live_positions`), UUID idempotency, startup hydration | 2026-11-28 |
+| S19-010 | Startup reconciliation sequence before market feeds, state hydration on boot and live enable | 2026-11-28 |
+| S19-012 | NSE Circular INSP77559 regulatory compliance, algo tagging (`X-Algo-Name`, `tag: ai_trader_algo`) | 2026-11-28 |
+| S19-006 | Real strategy signal classification (`BUY`/`SELL`, `metadata.isExit`, execution modes) | 2026-11-27 |
+| S19-001 | Emergency stop async acknowledgment & disarm-first engine flow | 2026-11-26 |
+| S19-002 | Bounded limit order emergency closes (`EMERGENCY_LIMIT_BUFFER_PCT`) | 2026-11-26 |
+| S19-003 | Exit-time drawdown gate & completed trade filtering | 2026-11-26 |
+| S19-004 | Glassmorphic skeleton loading architecture & fintech initial loader | 2026-11-26 |
+| SEED-001 | Decoupled database seeding: removed startup seed, added standalone `db:seed` & `db:reset` CLI | 2026-11-27 |
+| BRAND-001 | Monorepo rebranding: Multi-Broker Terminal (Groww, Upstox, NSE, BSE, MCX) | 2026-11-27 |
 
 ---
 
-*Board v1.0 · 2026-11-26 · 55 open tickets across 6 sprints*
+## 📋 BACKLOG — Pre-Live Validation Checklist
+
+| Ticket | Title | Priority | ETA |
+|--------|-------|----------|-----|
+| S6-011 | Pre-live validation checklist (12 items, requires 100+ paper trades) | 🔴 | 2027-01-10 |
+| S6-012 | Final production deployment + smoke test | 🔴 | 2027-01-11 |

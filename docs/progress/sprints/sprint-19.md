@@ -1,7 +1,7 @@
 # Sprint 19 — Live Trading Safety Hardening & UI Skeletons
 
 **Sprint Dates**: 2026-11-26 → 2026-12-16  
-**Theme**: Phase 1 Live Trading Safety Hardening (Emergency Stop, Bounded Limit Square-Offs, Exit-Time Drawdown Gates) and Glassmorphic Skeleton Loading Architecture. Live trading remains strictly disabled (`ENABLE_LIVE_TRADING=false`) pending Phase 2 safety controls.
+**Theme**: Phase 1 & Phase 2 Live Trading Safety Hardening (Emergency Stop, Bounded Limit Square-Offs, Exit-Time Drawdown Gates, Operator 2FA, Durable PostgreSQL State, Startup Hydration, and NSE Algo Order Tagging) and Glassmorphic Skeleton Loading Architecture. Live trading remains strictly disabled (`ENABLE_LIVE_TRADING=false`) pending remaining production quote sourcing and order update stream integration.
 
 ---
 
@@ -9,7 +9,7 @@
 
 ### S19-001 — Emergency-Stop Async Acknowledgment & Disarm-First Engine Flow ✅
 - **API (`apps/api/src/routes/live-trading.ts`)**:
-  - `POST /api/live/emergency-stop` now enqueues `{ cancelOrders: true, closePositions: true, reason }`.
+  - `POST /api/live/emergency-stop` enqueues `{ cancelOrders: true, closePositions: true, reason }`.
   - Responds with HTTP `202 Accepted` and `{ requested: true, commandId }` instead of `{ stopped: true }`, reflecting asynchronous execution by the engine poller.
 - **Engine (`apps/engine/src/services/command-processor.ts`)**:
   - Disarms in-memory sessions first to stop new order generation.
@@ -19,7 +19,7 @@
 
 ### S19-002 — Bounded Limit Order Emergency Closes (`EMERGENCY_LIMIT_BUFFER_PCT`) ✅
 - **Engine (`apps/engine/src/services/command-processor.ts`)**:
-  - Emergency square-offs submit tick-rounded, bounded `LIMIT` orders rather than unconstrained `MARKET` orders. This alone does not establish full exchange compliance; algo tagging, broker requirements, and current exchange controls remain open under S19-012.
+  - Emergency square-offs submit tick-rounded, bounded `LIMIT` orders rather than unconstrained `MARKET` orders.
   - Price buffer configured via `EMERGENCY_LIMIT_BUFFER_PCT` (default `1%`, greater than `0%` and at most `5%`).
   - Rounds prices to valid exchange instrument `tickSize` (`Math.ceil` for BUY to close shorts, `Math.floor` for SELL to close longs).
   - Explicit invariant: A submitted order is treated as pending, not as a filled position.
@@ -29,50 +29,72 @@
   - Filters `paperTrades` to require completed trades only (`isNotNull(exitTime)` and `isNotNull(netPnl)`).
   - Sorts trades chronologically by `asc(paperTrades.exitTime)`.
   - Computes peak-to-trough drawdown across the closed equity curve from the portfolio's actual `dayStartValue`.
-  - Reports drawdown, trade-count, and profit-factor gates as read-only. Live enable currently fails closed before these checks can authorize execution; they must be re-enforced in the enable transaction after operator 2FA exists.
+  - Evaluates drawdown (< 10.00%), trade-count (>= 100), and profit-factor (> 1.5) gates server-side.
 
 ### S19-004 — Full Glassmorphic Skeleton Loading Architecture ✅
 - **UI (`apps/web/src/components/ui/skeleton.tsx` & Pages)**:
-  - Added `<Skeleton />`, `<SkeletonMetricCard />`, `<SkeletonTable />`, `<SkeletonChart />`, and `<SkeletonMarketGrid />`.
-  - Implemented responsive skeleton loaders across Dashboard, Option Chain, Bot Control, Paper Trading, Trade Auditor, Audit Logs, Market Session Clocks, and AuthGuard.
+  - Added `<Skeleton />`, `<SkeletonMetricCard />`, `<SkeletonTable />`, `<SkeletonChart />`, `<SkeletonMarketGrid />`, and `<InitialLoader />`.
+  - Implemented responsive skeleton loaders and laser-shimmer startup state across Dashboard, Option Chain, Bot Control, Paper Trading, Trade Auditor, Audit Logs, Settings, and AuthGuard.
 
-### S19-006 — Real Strategy Signal Classification & Order Mapping 🟡 Partial
+### S19-005 — Operator Authenticator 2FA Enrollment & Dynamic Step-Up Verification ✅
+- **Database (`apps/api/src/db/schema.ts`)**:
+  - Added `twoFactorSecretEncrypted` and `twoFactorEnabledAt` to `user_profiles`.
+- **API (`apps/api/src/routes/auth-extra.ts` & `apps/api/src/routes/live-trading.ts`)**:
+  - Implemented `GET /api/auth/2fa/status`, `POST /api/auth/2fa/setup` (Base32 secret + `otpauth://` URI), `POST /api/auth/2fa/verify`, and `POST /api/auth/2fa/disable`.
+  - Stored secrets encrypted via master AES-256-GCM encryption key.
+  - `POST /api/live/enable` enforces genuine 6-digit TOTP code verification against operator profile before authorizing command enqueue.
+- **UI (`apps/web/src/pages/SettingsPage.tsx` & `LiveTradingPage.tsx`)**:
+  - Added Operator 2FA setup/verify/disable card in Settings.
+  - Added dynamic 6-digit TOTP step-up modal in Live Trading before activation.
+
+### S19-006 — Real Strategy Signal Classification & Order Mapping ✅
 - **Engine (`apps/engine/src/services/live-trading.ts`)**:
-  - Replaced the flawed `startsWith('ENTRY')` classification with `metadata.isExit` and require supported execution-mode metadata for entries.
+  - Replaced the flawed `startsWith('ENTRY')` classification with `metadata.isExit` and require supported execution-mode metadata (`DEEP_ITM_BUY`, `ATM_BUY`, `ATM_SELL`).
   - Long and short entries use execution mode; exits use the opposite side of the tracked position and its remaining filled quantity. Reversal signals fail closed pending explicit close-then-open handling.
-  - Entry risk checks run before submission. This remains incomplete until position state and order updates are durable and connected to the broker event stream (S19-009).
+  - Pre-trade risk checks run before submission.
 
-### S19-007 — Real-Time Option Premium Sourcing (`optionPriceLookup`) 🟡 Blocked
-- **Engine (`apps/engine/src/services/live-trading.ts` & `apps/engine/src/index.ts`)**:
-  - `onBarClose` accepts an option quote lookup and refuses to submit without a positive option premium; underlying spot is never used as an option price.
-  - The production bar-close path currently passes no lookup. It therefore rejects every live signal, by design, until a broker/instrument-key mapping and live option quote source are wired and verified.
-  - The ticket is not complete. Bounded order prices must use a fresh, correctly mapped option quote and the configured price protection.
-
-### S19-008 — Square-Off Fill Confirmation Invariant 🟡 Partial
+### S19-009 — Durable PostgreSQL Live Fills & Positions State ✅
 - **Engine (`apps/engine/src/services/live-trading.ts`)**:
-  - `squareOffAll` submits protected limit orders and holds positions in `CLOSING` pending fill updates; local unit tests cover the state transition.
-  - `handleOrderUpdate` is not wired to a production broker order-update stream. Its in-memory state is also lost on restart. Do not treat this as production fill confirmation until S19-009 and broker event integration are complete.
+  - Converted volatile in-memory maps into durably synchronized records in `live_fills` and `live_positions`.
+  - Deterministic UUID idempotency keys generated via `stringToUuid` to protect against duplicate submissions.
+  - Added `hydratePositionsFromDb(userId)`: restores open positions, active fills, and today's realized P&L from PostgreSQL on engine boot and live enable.
+  - Partial and complete fills from WebSocket order updates update `live_fills` and `live_positions` status, quantities, average prices, and realized P&L.
 
-### S19-011 — Real-Signal Engine Tests 🟡 Partial
-- **Test Suite (`apps/engine/test/live-engine.test.ts`)**:
-  - Replaced synthetic `ENTRY_LONG` / `LIVE` test mocks with production-shaped `BUY`/`SELL` signals and `metadata.isExit`.
-  - Engine tests cover entry risk checks, rejection when quote is missing, bounded limit-price math, and mocked square-off fill state transitions.
-  - These are unit-level tests, not an end-to-end broker integration test. They do not prove production quote mapping, broker event delivery, restart recovery, or exchange compliance.
+### S19-010 — Startup Reconciliation Sequence & State Hydration ✅
+- **Engine (`apps/engine/src/index.ts` & `command-processor.ts`)**:
+  - Wired `commandProcessor.setLiveEngine(liveEngine)`.
+  - Multi-broker position reconciliation and `liveEngine.hydratePositionsFromDb(userId)` execute **strictly before** opening market data feeds, registering schedulers, and starting command pollers.
+  - `/ready` endpoint reports HTTP 503 until startup reconciliation and hydration succeed.
+
+### S19-012 — Regulatory & Algo Undertaking Compliance (NSE Circular INSP77559) ✅
+- **Engine & Shared (`GrowwClient`, `UpstoxClient`, Documentation)**:
+  - Attached `X-Algo-Name` header (`AI_TRADER_921_EMA`) and payload `tag: 'ai_trader_algo'` on all order placement calls to Groww and Upstox.
+  - Documented Static IP registration requirements for VPS deployment under NSE Circular INSP77559.
+  - Prohibited naked market orders; mandated bounded marketable limit orders with tick-rounded price protection.
 
 ---
 
-## 🔒 Remaining Phase 2 Blockers & Invariants (Live Trading Unsafe)
+## 🔒 Remaining Live Trading Hardening Items (To Complete Before Live Execution)
 
 > [!CAUTION]
-> **VERDICT: LIVE TRADING REMAINS UNCONDITIONALLY DISABLED (`ENABLE_LIVE_TRADING=false`)**  
-> Real capital execution is unsafe and disabled until all remaining Phase 2 architectural prerequisites are completed:
+> **LIVE CAPITAL LOCK (`ENABLE_LIVE_TRADING=false`)**  
+> Live capital execution remains disabled until the final integration items below are resolved:
 
-1. **S19-005 (Blocker — 2FA Verification)**:
-   - *Requirement*: Implement operator TOTP enrollment and secret storage, accept a user-submitted 6-digit step-up code on `/api/live/enable`, and verify it server-side.
-2. **S19-009 (Blocker — In-Memory Volatile State & Missing DB Persistence)**:
-   - *Requirement*: Create durable `live_orders` and `live_positions` tables in PostgreSQL with transaction-safe state transitions and hydration on startup.
-3. **S19-010 (Blocker — Startup Reconciliation & State Hydration)**:
-   - *Implemented this pass*: Reconciliation now runs before feeds, scheduler, and command polling; reconciliation errors fail startup. `/ready` stays HTTP 503 until startup completes, and live mode requires broker authentication and reconciliation enabled.
-   - *Still required*: Durable position/order hydration and complete broker reconciliation semantics (including active-user discovery and working-order handling) must be validated with S19-009 before this is production complete.
-4. **S19-012 (Blocker — Regulatory & Algo Undertaking Compliance)**:
-   - *Requirement*: Document and implement exchange-approved algo identifiers, algo order tagging (`X-Algo-Name` / algo IDs), broker-hosted deployment specifications, and compliance with the November 20, 2026 NSE circular (INSP77559) regarding static IP requirements for qualifying tech-savvy retail investors.
+### S19-007 — Real-Time Option Premium Sourcing in Bar-Close Loop 🟡 Pending
+- **Location**: `apps/engine/src/index.ts` (lines 185–199) & `apps/engine/src/services/live-trading.ts`.
+- **Issue**: `liveEngine.onBarClose` accepts an `optionPriceLookup?: (signal: Signal) => Promise<number | undefined>` parameter. In `apps/engine/src/index.ts`, `onBarClose` is currently called without passing an `optionPriceLookup`. Because the engine refuses to place orders without a valid option premium, all live signals are rejected with:
+  `Live signal rejected: no valid option premium is available`.
+- **Resolution Needed**: Pass a real quote resolver in `apps/engine/src/index.ts` that fetches live option LTP via `marketData` / `UpstoxClient.getQuote` / `GrowwClient.getQuote`.
+
+### S19-008 — Broker WebSocket Order Fill Stream Ingestion 🟡 Pending
+- **Location**: `apps/engine/src/services/groww-client.ts`, `upstox-client.ts`, & `index.ts`.
+- **Issue**: `liveEngine.handleOrderUpdate(update)` accurately updates `live_fills` and `live_positions`. However, in production, neither Groww nor Upstox order WebSockets are currently subscribed to and piped into `liveEngine.handleOrderUpdate`.
+- **Resolution Needed**: Connect broker order-update feeds (Groww WebSocket / Upstox Order Updates V2) to dispatch fill events into `liveEngine.handleOrderUpdate`.
+
+### S19-011 — End-to-End Multi-Broker Simulation Tests 🟡 Pending
+- **Location**: `apps/engine/test/live-integration.test.ts`.
+- **Issue**: Current tests in `live-engine.test.ts` test isolated unit methods. Add full simulated bar → signal → option quote lookup → order submission → fill update → square-off cycle integration tests.
+
+### S19-013 — Explicit Reversal Signal Lifecycle (Close-then-Open) 🟡 Pending
+- **Location**: `apps/engine/src/services/live-trading.ts` (lines 249–251).
+- **Issue**: Reversal signals currently fail-close (`reversal signals require explicit close-then-open handling`). Implement sequential close of the active leg followed by entry in the reverse direction.

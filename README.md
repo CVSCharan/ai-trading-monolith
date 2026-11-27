@@ -1,172 +1,100 @@
-# Groww Trading System
+# AI Trader — Quantitative Options & Multi-Broker Algorithmic Terminal
 
-A complete trading lifecycle system for Indian markets using Groww API.
+A high-performance algorithmic trading platform for Indian markets (NSE, BSE, MCX) supporting **Groww** and **Upstox** (API v3 & Analytics), featuring quantitative 9/21 EMA strategies, paper bot execution, durable PostgreSQL audit trails, and strict risk guardrails.
 
-## Monorepo Structure (Bun Workspaces)
+## Monorepo Structure (Bun Workspaces & Turborepo)
 
 ```
 groww-ai-trading-monolith/
 ├── apps/
-│   ├── api/           # Elysia backend (Vercel Functions)
-│   ├── web/           # React frontend (Vercel Static)
-│   └── engine/        # Long-lived trading engine (VPS/Docker)
+│   ├── api/           # Elysia backend + Better Auth (Vercel Functions / Node)
+│   ├── web/           # React + Vite + Tailwind CSS frontend (Vercel Static)
+│   └── engine/        # Long-lived trading engine & WebSocket feeds (VPS / Docker)
 ├── packages/
-│   ├── strategy-core/ # Pure strategy logic (no deps)
-│   └── shared/        # Types, constants, timezone helpers
-├── docs/              # Master documentation
-├── turbo.json         # Turborepo config
-├── package.json       # Root workspace
-├── tsconfig.json      # Base TypeScript config
-└── CLAUDE.md          # Project rules
+│   ├── strategy-core/ # Pure quantitative strategy & backtest engine (zero deps)
+│   └── shared/        # Multi-broker adapters, types, constants, timezone & session clocks
+├── docs/              # Master documentation, sprint plans & regulatory guides
+├── turbo.json         # Turborepo task orchestrator
+├── package.json       # Root workspace config
+├── tsconfig.json      # Base TypeScript configuration
+└── CLAUDE.md          # Architectural rules & safety invariants
 ```
 
 ## Documentation
 
-- [Project Plan](docs/project-plan.md) - Overall project roadmap and phases
-- [Architecture](docs/architecture.md) - System architecture and data flow
-- [Strategy Specification](docs/strategy-docs-v2.md) - 9/21 EMA crossover options strategy
-- [Phase 1 Specification](docs/phase1-spec.md) - Detailed Phase 1 implementation plan
+- [Algo Trading Guide](docs/guides/algo-trading-guide.md) — Comprehensive backtest to live bot guide
+- [Production Deployment & Pre-Live Checklist](docs/deployment/production-checklist.md) — Pre-live gates & NSE regulatory checklist
+- [System Architecture](docs/architecture.md) — Monorepo services, data flow, and database models
+- [Strategy Specification](docs/strategy-docs-v2.md) — 9/21 EMA crossover options strategy specification
+- [Project Plan](docs/project-plan.md) — Multi-sprint roadmap and deliverables
+- [Sprint 19 Hardening](docs/progress/sprints/sprint-19.md) — Live trading safety, Operator 2FA & durable state
 
 ## Quick Start
 
 ### Prerequisites
-- Bun >= 1.1.0
-- PostgreSQL (Neon recommended)
-- Groww API credentials with TOTP
+- [Bun](https://bun.sh) >= 1.1.0
+- PostgreSQL (Neon serverless or local Postgres)
+- Groww API credentials (with TOTP) and/or Upstox API credentials (`UPSTOX_ANALYTICS_TOKEN` / `UPSTOX_ACCESS_TOKEN`)
 
 ### Setup
 
 ```bash
-# From root - single install for all workspaces
-cd groww-ai-trading-monolith
+# Clone and enter workspace
+git clone https://github.com/CVSCharan/ai-trading-monolith.git
+cd ai-trading-monolith
+
+# Install all workspace dependencies
 bun install
 
-# Setup environment
+# Setup environment variables
 cp .env.example .env
-# Edit .env with your credentials (Neon DB, Groww API keys, etc.)
+# Edit .env with your DATABASE_URL, BETTER_AUTH_SECRET, ENCRYPTION_MASTER_KEY, etc.
 
-# Database setup (API only)
-cd apps/api
-bun run db:generate
-bun run db:migrate
-bun run db:seed
+# Database migrations & on-demand seeding
+bun run db:seed    # Seeds default instruments, strategy templates & cost models
+# bun run db:reset # Resets & re-seeds DB (safe in development)
 
-# Start all services (API, Web, Engine)
-cd ../..
+# Start all microservices in watch mode (Web :5173, API :8000, Engine :8001)
 bun run dev
 ```
 
-### Individual App Commands
+### Monorepo CLI Commands
 
 ```bash
-# API (Elysia + Better Auth)
-cd apps/api
-bun run dev          # Dev with hot reload
-bun run build        # Build for production
-bun run test         # Run tests
-bun run db:studio    # Drizzle Studio
-
-# Web (React + Vite)
-cd apps/web
-bun run dev          # Vite dev server
-bun run build        # Production build
-bun run preview      # Preview build
-
-# Engine (Long-lived process)
-cd apps/engine
-bun run dev          # Dev with hot reload
-bun run start        # Production start
-```
-
-### Database (API only)
-```bash
-cd apps/api
-bun run db:generate   # Generate migrations
-bun run db:migrate    # Run migrations
-bun run db:push       # Push schema (dev)
-bun run db:studio     # Drizzle Studio
-bun run db:seed       # Seed instruments
-```
-
-## Strategy Overview
-
-**9/21 EMA Crossover on NIFTY Options**
-- Timeframes: 5m, 15m, 30m (resampled from 1m, aligned to 09:15)
-- Entry window: Configurable (09:30-11:30 default)
-- Exit: Opposite crossover or 15:00 mandatory square-off
-- Immediate reversal: Opposite crossover within window closes and reverses
-- Execution modes: Deep ITM Buy, ATM Buy, ATM Sell
-- Lot size: From `instruments` table (NIFTY: 75 current), 1 lot per trade
-
-## Development
-
-### Running Tests
-```bash
-# All tests (from root)
+# Run unit tests across all packages
 bun test
 
-# Individual packages
-cd packages/strategy-core && bun test
-cd apps/api && bun test
-cd apps/web && bun test
-```
-
-### Type Checking
-```bash
-# All packages
+# Typecheck all 5 workspace packages via Turborepo
 bun run typecheck
 
-# Individual
-cd packages/strategy-core && bun run typecheck
-cd apps/api && bun run typecheck
-cd apps/web && bun run typecheck
+# Build all packages for production
+bun run build
+
+# Standalone database management
+bun run db:seed   # Seed default database fixtures
+bun run db:reset  # Truncate tables and re-seed (guarded by ALLOW_PROD_RESET)
 ```
 
-### Database (API only)
-```bash
-cd apps/api
-bun run db:generate   # Generate migrations
-bun run db:migrate    # Run migrations
-bun run db:push       # Push schema (dev)
-bun run db:studio     # Drizzle Studio
-bun run db:seed       # Seed instruments
-```
+## Strategy & Risk Architecture
 
-## Project Structure
+**Intraday 9/21 EMA Crossover on NIFTY & BANKNIFTY Options**
+- **Timeframes**: 5m, 15m, 30m (resampled from 1m ticks, aligned to 09:15 IST).
+- **Execution Windows**: Configurable entry window (09:30–11:30 IST).
+- **Square-Off Invariant**: Mandatory unconditional square-off at **15:00 IST**.
+- **Execution Modes**: Deep ITM Buy (`DEEP_ITM_BUY`), ATM Buy (`ATM_BUY`), ATM Sell (`ATM_SELL`).
+- **Pre-Trade Risk Checks**: Daily loss threshold, position limits, per-trade risk sizing, and lot bounds.
+- **Kill Switch**: Disarm-first emergency stop with bounded marketable limit order cleanup (`EMERGENCY_LIMIT_BUFFER_PCT`).
 
-```
-groww-ai-trading-monolith/
-├── apps/
-│   ├── api/           # Elysia backend (Vercel Functions)
-│   ├── web/           # React frontend (Vercel Static)
-│   └── engine/        # Long-lived trading engine (VPS/Docker)
-├── packages/
-│   ├── strategy-core/ # Pure strategy logic (no deps)
-│   └── shared/        # Types, constants, timezone helpers
-├── docs/              # Master documentation
-├── turbo.json         # Turborepo config
-├── package.json       # Root workspace
-├── tsconfig.json      # Base TypeScript config
-└── CLAUDE.md          # Project rules
-```
+## Security & Regulatory Compliance
 
-## Deployment Targets
-
-| App | Platform | Root Directory | Build Command |
-|-----|----------|----------------|---------------|
-| web | Vercel (Static) | `apps/web` | `bun run build` |
-| api | Vercel (Functions) | `apps/api` | `bun run build` |
-| engine | VPS/Docker | `apps/engine` | `bun run build` |
-
-## Security
-
-- All API credentials encrypted at rest (envelope encryption)
-- TOTP secrets never logged
-- Live trading remains blocked until genuine operator 2FA enrollment and step-up verification are implemented (API and engine fail closed)
-- Server-side risk enforcement (cannot bypass from client)
-- Audit logging for all financial operations
-- Rate limiting on all endpoints
+- **Decoupled Database Seeding**: Server startup never unconditionally overwrites database state; seeding is strictly on-demand.
+- **Operator 2FA Step-Up (`S19-005`)**: Live trading activation strictly requires an RFC 6238 TOTP verification code from an authenticator app (Google Authenticator, Authy, 1Password), verified against encrypted master-key records in PostgreSQL.
+- **Durable Live Audit Trail (`S19-009`)**: Every live order is recorded in `live_fills` with deterministic UUID idempotency keys, and open positions are tracked in `live_positions`.
+- **Startup Reconciliation (`S19-010`)**: Multi-broker position state is reconciled and hydrated from PostgreSQL before market data feeds and schedulers start.
+- **NSE Circular INSP77559 (`S19-012`)**: Mandates pre-registered Static IPs for automated retail orders, algo order tagging (`X-Algo-Name`, `tag: ai_trader_algo`), and prohibition of naked market orders.
+- **Envelope Encryption**: Broker credentials and 2FA secrets encrypted at rest via AES-256-GCM.
+- **Live Trading Safety Invariant**: Live capital deployment remains strictly locked (`ENABLE_LIVE_TRADING=false`) until all regulatory and broker-integration requirements pass.
 
 ## License
 
-Private - Internal use only
+Private — Internal Use Only
