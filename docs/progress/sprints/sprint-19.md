@@ -91,6 +91,24 @@
     5. Regulatory Compliance & NSE Circular INSP77559 architecture.
   - Linked in navigation sidebar (`apps/web/src/components/layout/Sidebar.tsx`) under "Strategy Handbook".
 
+### S19-007 — Real-Time Option Premium Sourcing in Bar-Close Loop ✅
+- **Engine (`apps/engine/src/index.ts` & `live-trading.ts`)**:
+  - Implemented `resolveOptionPrice(signal)` callback in `index.ts`:
+    1. Checks fast in-memory tick cache from `MarketDataService.getLatestPrice(sym)` and `NSE_FO|${sym}`.
+    2. Falls back to active data broker (`router.dataBroker.getQuote([sym])`).
+    3. Falls back to execution broker if distinct from data broker.
+  - Wired into `liveEngine.onBarClose` alongside full strategy `risk` limits. Live orders receive genuine tick-rounded option quotes.
+
+### S19-013 — Explicit Reversal Signal Lifecycle (Sequential Close-Then-Open) ✅
+- **Engine (`apps/engine/src/services/live-trading.ts`)**:
+  - Replaced the `if (signal.isReversal) return ...` fail-closed rejection with sequential execution:
+    1. Identifies active open positions for the user.
+    2. Submits protected limit exit orders (+1% / -1% buffer) to close existing active legs and transitions their status to `CLOSING`.
+    3. Writes reversal exit fill records to `live_fills` and updates `live_positions` in PostgreSQL.
+    4. Evaluates `validateRiskChecks` accounting for the freeing of the active position.
+    5. Submits the entry order for the opposite reverse leg (`signal.optionSymbol`, `orderQuantity`, `limitPrice`), transitions to `PENDING`, and records in DB.
+  - Added unit test in `apps/engine/test/live-engine.test.ts` verifying sequential double-order execution.
+
 ---
 
 ## 🔒 Remaining Live Trading Hardening Items (To Complete Before Live Execution)
@@ -98,12 +116,6 @@
 > [!CAUTION]
 > **LIVE CAPITAL LOCK (`ENABLE_LIVE_TRADING=false`)**  
 > Live capital execution remains disabled until the final integration items below are resolved:
-
-### S19-007 — Real-Time Option Premium Sourcing in Bar-Close Loop 🟡 Pending
-- **Location**: `apps/engine/src/index.ts` (lines 185–199) & `apps/engine/src/services/live-trading.ts`.
-- **Issue**: `liveEngine.onBarClose` accepts an `optionPriceLookup?: (signal: Signal) => Promise<number | undefined>` parameter. In `apps/engine/src/index.ts`, `onBarClose` is currently called without passing an `optionPriceLookup`. Because the engine refuses to place orders without a valid option premium, all live signals are rejected with:
-  `Live signal rejected: no valid option premium is available`.
-- **Resolution Needed**: Pass a real quote resolver in `apps/engine/src/index.ts` that fetches live option LTP via `marketData` / `UpstoxClient.getQuote` / `GrowwClient.getQuote`.
 
 ### S19-008 — Broker WebSocket Order Fill Stream Ingestion 🟡 Pending
 - **Location**: `apps/engine/src/services/groww-client.ts`, `upstox-client.ts`, & `index.ts`.
@@ -113,7 +125,3 @@
 ### S19-011 — End-to-End Multi-Broker Simulation Tests 🟡 Pending
 - **Location**: `apps/engine/test/live-integration.test.ts`.
 - **Issue**: Current tests in `live-engine.test.ts` test isolated unit methods. Add full simulated bar → signal → option quote lookup → order submission → fill update → square-off cycle integration tests.
-
-### S19-013 — Explicit Reversal Signal Lifecycle (Close-then-Open) 🟡 Pending
-- **Location**: `apps/engine/src/services/live-trading.ts` (lines 249–251).
-- **Issue**: Reversal signals currently fail-close (`reversal signals require explicit close-then-open handling`). Implement sequential close of the active leg followed by entry in the reverse direction.

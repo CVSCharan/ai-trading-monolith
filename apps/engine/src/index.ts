@@ -20,7 +20,7 @@ import { CommandProcessor } from './services/command-processor';
 import { ReconciliationService } from './services/reconciliation';
 import { MarketDataService } from './services/market-data';
 import { PaperTradingEngine } from './services/paper-trading';
-import { LiveTradingEngine } from './services/live-trading';
+import { LiveTradingEngine, type LiveRiskConfig } from './services/live-trading';
 import { TradingScheduler } from './services/scheduler';
 
 // Logger (human-readable in dev, JSON + secret redaction in production)
@@ -176,12 +176,60 @@ async function startEngine() {
         | Map<string, { generator: any; strategy: any; instruments: any[] }>
         | undefined;
       if (liveGenerators && process.env['ENABLE_LIVE_TRADING'] === 'true') {
+        const resolveOptionPrice = async (sig: any): Promise<number | undefined> => {
+          const sym = sig.optionSymbol;
+          if (!sym) return undefined;
+
+          // 1. Check in-memory tick cache from MarketDataService
+          const cached = marketData.getLatestPrice(sym) ?? marketData.getLatestPrice(`NSE_FO|${sym}`);
+          if (cached !== undefined && cached > 0) {
+            return cached;
+          }
+
+          // 2. Query active data broker
+          try {
+            const router = marketData.getBrokerRouter();
+            const quotes = await router.dataBroker.getQuote([sym]);
+            const quote = quotes[sym];
+            if (quote && quote.ltp && quote.ltp > 0) {
+              return quote.ltp;
+            }
+          } catch (err) {
+            logger.warn({ err, symbol: sym }, 'Failed fetching live option quote from dataBroker');
+          }
+
+          // 3. Fallback to execution broker if distinct
+          try {
+            const router = marketData.getBrokerRouter();
+            if (router.activeExecutionBrokerName !== router.activeDataBrokerName) {
+              const quotes = await router.executionBroker.getQuote([sym]);
+              const quote = quotes[sym];
+              if (quote && quote.ltp && quote.ltp > 0) {
+                return quote.ltp;
+              }
+            }
+          } catch (err) {
+            logger.warn({ err, symbol: sym }, 'Failed fetching live option quote from executionBroker');
+          }
+
+          return undefined;
+        };
+
         for (const entry of liveGenerators.values()) {
           if (
             entry.strategy.underlyingSymbol === closedBar.symbol &&
             entry.strategy.timeframe === closedBar.timeframe
           ) {
             try {
+              const strategy = entry.strategy;
+              const risk: LiveRiskConfig = {
+                capital: strategy.capital ?? 1000000,
+                maxDailyLossPct: strategy.maxDailyLossPct ?? 2,
+                maxOpenPositions: strategy.maxOpenPositions ?? 3,
+                lotSize: strategy.lotSize ?? (closedBar.symbol.includes('BANK') ? 15 : 25),
+                maxLotsPerOrder: strategy.maxLotsPerOrder ?? 4,
+              };
+
               const signals = await liveEngine.onBarClose(
                 userId,
                 entry.generator,
@@ -196,6 +244,8 @@ async function startEngine() {
                   volume: closedBar.volume,
                 },
                 entry.instruments ?? [],
+                risk,
+                resolveOptionPrice,
               );
               for (const sig of signals) {
                 wsManager.broadcast('signals', sig);

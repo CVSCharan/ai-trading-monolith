@@ -9,10 +9,8 @@
 
 | Ticket | Title | Sprint | Owner | ETA |
 |--------|-------|--------|-------|-----|
-| S19-007 | Live option quotes: Wire `optionPriceLookup` in `apps/engine/src/index.ts` from `marketData` / `Upstox` quotes | Sprint 19 | Team | 2026-12-05 |
 | S19-008 | Broker order fill stream: Pipe broker order update WebSocket events into `liveEngine.handleOrderUpdate` | Sprint 19 | Team | 2026-12-08 |
 | S19-011 | End-to-end integration test: Full bar → quote → order → fill → square-off test simulation | Sprint 19 | Team | 2026-12-10 |
-| S19-013 | Explicit reversal signal lifecycle (sequential close-then-open handling) | Sprint 19 | Team | 2026-12-10 |
 
 ---
 
@@ -20,6 +18,8 @@
 
 | Ticket | Title | Completed |
 |--------|-------|-----------|
+| S19-007 | Live option quotes: Wire `optionPriceLookup` (`MarketData` cache + dataBroker/executionBroker quotes) in `apps/engine/src/index.ts` | 2026-11-28 |
+| S19-013 | Explicit reversal signal lifecycle: sequential close-then-open handling with PostgreSQL fill records | 2026-11-28 |
 | S19-014 | Comprehensive Shadcn UI design system (Popover, Slider, Progress, Separator, Checkbox, Textarea, Avatar, Sheet) | 2026-11-28 |
 | ACADEMY-001 | In-App Trading Academy & 9/21 EMA Strategy Cross-Verification Handbook (`/academy`) | 2026-11-28 |
 | S19-005 | Operator 2FA setup, verify, disable & dynamic step-up TOTP verification on `/api/live/enable` | 2026-11-28 |

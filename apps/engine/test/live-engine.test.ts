@@ -236,4 +236,89 @@ describe('LiveTradingEngine (S19-006, S19-007, S19-008)', () => {
       process.env['ENABLE_LIVE_TRADING'] = prev;
     }
   });
+
+  it('reversal signal closes active leg and enters opposite leg sequentially (S19-013)', async () => {
+    const prev = process.env['ENABLE_LIVE_TRADING'];
+    process.env['ENABLE_LIVE_TRADING'] = 'true';
+
+    try {
+      const placed: PlacedOrder[] = [];
+      const engine = new LiveTradingEngine(
+        null,
+        pino({ level: 'silent' }),
+        createMockGrowwClient(placed)
+      );
+
+      const morningIST = new Date('2026-11-26T04:15:00.000Z');
+
+      // 1. Initial LONG entry in NIFTY26DEC24200CE
+      const entry = await engine.placeOrder('user-1', REAL_ENTRY_SIGNAL, RISK, 'idem-pos-1', 75, 120.0, morningIST);
+      engine.handleOrderUpdate({
+        orderId: entry.order!.orderId,
+        filledQuantity: 75,
+        avgFillPrice: 120.0,
+        status: 'COMPLETE',
+      });
+      expect(placed.length).toBe(1);
+      expect(engine.getOpenPositions().length).toBe(1);
+
+      // 2. Reversal signal arrives (LONG -> SHORT): isReversal: true, new signalType: SELL, PE option
+      const reversalSignal: Signal = {
+        strategyId: 'strat-1',
+        runType: 'live',
+        barTime: new Date('2026-11-26T05:00:00.000Z'), // 10:30 IST
+        signalType: 'SELL',
+        ema9: 24450,
+        ema21: 24480,
+        spotPrice: 24440,
+        selectedStrike: 24500,
+        optionType: 'PE',
+        optionSymbol: 'NIFTY26DEC24500PE',
+        expiryDate: new Date('2026-12-31T00:00:00.000Z'),
+        entryWindowValid: true,
+        isReversal: true,
+        currentPosition: 'LONG',
+        metadata: {
+          reversedFrom: 'LONG',
+          executionMode: 'DEEP_ITM_BUY', // Buying PE for bearish reversal
+          canTrade: true,
+        },
+      };
+
+      const revRes = await engine.placeOrder('user-1', reversalSignal, RISK, 'idem-rev-1', 75, 110.0, new Date('2026-11-26T05:00:00.000Z'));
+      expect(revRes.executed).toBe(true);
+
+      // Verify two orders placed:
+      // Order 1: SELL to close existing CE position
+      expect(placed.length).toBe(3); // 1 initial + 1 reversal close + 1 reversal entry
+      expect(placed[1].symbol).toBe('NIFTY26DEC24200CE');
+      expect(placed[1].side).toBe('SELL');
+      expect(placed[1].quantity).toBe(75);
+
+      // Order 2: BUY to enter new PE position
+      expect(placed[2].symbol).toBe('NIFTY26DEC24500PE');
+      expect(placed[2].side).toBe('BUY');
+      expect(placed[2].quantity).toBe(75);
+
+      // Check position states: old position is CLOSING, new position is PENDING broker fill
+      const positions = Array.from((engine as any).positions.values()) as any[];
+      const oldPos = positions.find((p) => p.optionSymbol === 'NIFTY26DEC24200CE');
+      const newPos = positions.find((p) => p.optionSymbol === 'NIFTY26DEC24500PE');
+
+      expect(oldPos?.status).toBe('CLOSING');
+      expect(newPos?.status).toBe('PENDING');
+
+      // 3. Broker fill confirmation arrives for the new reversal entry
+      const filledPos = engine.handleOrderUpdate({
+        orderId: revRes.order!.orderId,
+        filledQuantity: 75,
+        avgFillPrice: 110.0,
+        status: 'COMPLETE',
+      });
+      expect(filledPos?.status).toBe('OPEN');
+      expect(filledPos?.filledQuantity).toBe(75);
+    } finally {
+      process.env['ENABLE_LIVE_TRADING'] = prev;
+    }
+  });
 });

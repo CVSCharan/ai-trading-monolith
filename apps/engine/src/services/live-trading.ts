@@ -158,7 +158,8 @@ export class LiveTradingEngine {
   validateRiskChecks(
     quantity: number,
     risk: LiveRiskConfig,
-    now: Date = new Date()
+    now: Date = new Date(),
+    isReversal = false,
   ): { allowed: boolean; reason?: string } {
     if (process.env['ENABLE_LIVE_TRADING'] !== 'true') {
       return { allowed: false, reason: 'ENABLE_LIVE_TRADING is not true' };
@@ -169,10 +170,12 @@ export class LiveTradingEngine {
       return { allowed: false, reason: 'Past 15:00 IST square-off cutoff' };
     }
 
-    const openCount = Array.from(this.positions.values()).filter(
-      (p) => p.status !== 'CLOSED'
-    ).length;
-    if (openCount >= risk.maxOpenPositions) {
+    // On reversal, the active open position is closed immediately, so effective count is openCount - 1
+    const activePositions = Array.from(this.positions.values()).filter(
+      (p) => p.status === 'OPEN'
+    );
+    const effectiveOpenCount = isReversal ? Math.max(0, activePositions.length - 1) : activePositions.length;
+    if (effectiveOpenCount >= risk.maxOpenPositions) {
       return { allowed: false, reason: `Max open positions (${risk.maxOpenPositions}) reached` };
     }
 
@@ -240,11 +243,74 @@ export class LiveTradingEngine {
     }
 
     const isEntry = !Boolean(signal.metadata?.['isExit']);
-    if (signal.isReversal) {
-      return { executed: false, reason: 'Reversal signals require explicit close-then-open handling' };
-    }
+    const isReversal = Boolean(signal.isReversal);
+
     if (signal.metadata?.['canTrade'] === false || (isEntry && !signal.entryWindowValid)) {
       return { executed: false, reason: 'Signal is not eligible for live execution' };
+    }
+
+    // S19-013: Handle sequential reversal (close active leg first, then proceed to enter reverse leg)
+    if (isReversal) {
+      const activePositions = Array.from(this.positions.values()).filter(
+        (p) => p.status === 'OPEN' && p.userId === userId
+      );
+
+      for (const openPos of activePositions) {
+        const closeSide: 'BUY' | 'SELL' = openPos.side === 'BUY' ? 'SELL' : 'BUY';
+        const closeQty = openPos.filledQuantity - (openPos.totalClosedQuantity ?? 0);
+        if (closeQty > 0) {
+          const ltp = openPos.currentPrice || openPos.avgEntryPrice;
+          const buffer = closeSide === 'SELL' ? 0.99 : 1.01;
+          const closeLimitPrice = Number((ltp * buffer).toFixed(2));
+
+          this.logger.info(
+            { userId, symbol: openPos.optionSymbol, closeSide, closeQty, closeLimitPrice },
+            'Submitting exit order to close existing leg on reversal signal'
+          );
+
+          const closeRaw = (await this.growwClient.placeOrder({
+            symbol: openPos.optionSymbol,
+            exchange: 'NFO',
+            quantity: closeQty,
+            side: closeSide,
+            orderType: 'LIMIT',
+            price: closeLimitPrice,
+            product: 'MIS',
+            validity: 'DAY',
+          })) as { orderId?: string; id?: string; status?: string } | undefined;
+
+          const closeOrderId = closeRaw?.orderId ?? closeRaw?.id ?? `LIVE-REV-CLOSE-${openPos.id}-${Date.now()}`;
+          openPos.closeOrderId = closeOrderId;
+          openPos.closeFilledQuantity = 0;
+          openPos.status = 'CLOSING';
+
+          if (this.db) {
+            try {
+              const exitUuid = stringToUuid(`reversal-close-${openPos.id}-${Date.now()}`);
+              await this.db.insert(liveFills).values({
+                userId,
+                growwOrderId: closeOrderId,
+                idempotencyKey: exitUuid,
+                symbol: (signal.metadata?.['underlyingSymbol'] as string) || openPos.optionSymbol,
+                optionSymbol: openPos.optionSymbol,
+                side: closeSide,
+                orderType: 'LIMIT',
+                quantity: closeQty,
+                limitPrice: String(closeLimitPrice),
+                status: 'OPEN',
+                placedAt: new Date(),
+                updatedAt: new Date(),
+              });
+
+              await this.db.update(livePositions)
+                .set({ currentPrice: String(closeLimitPrice) })
+                .where(and(eq(livePositions.userId, userId), eq(livePositions.optionSymbol, openPos.optionSymbol), isNull(livePositions.closedAt)));
+            } catch (err) {
+              this.logger.error({ err, closeOrderId }, 'Failed to persist reversal exit order in PostgreSQL');
+            }
+          }
+        }
+      }
     }
 
     const pos = this.positions.get(signal.optionSymbol);
@@ -265,7 +331,7 @@ export class LiveTradingEngine {
     }
 
     if (isEntry) {
-      const check = this.validateRiskChecks(orderQuantity, risk, now);
+      const check = this.validateRiskChecks(orderQuantity, risk, now, isReversal);
       if (!check.allowed) {
         this.logger.warn({ userId, reason: check.reason }, 'Live entry blocked by risk check');
         return { executed: false, reason: check.reason };
