@@ -4,6 +4,7 @@ import { Activity, CheckCircle2, ChevronDown, KeyRound, RefreshCw, ShieldAlert, 
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
 import { QueryErrorState } from '../components/ui/query-feedback';
 import { fetchJson } from '../lib/api';
 
@@ -251,19 +252,17 @@ export function SettingsPage() {
             <CardDescription>Required to manage strategies, paper runs, and broker connections</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <input
+            <Input
               type="email"
               placeholder="Operator Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none"
             />
-            <input
+            <Input
               type="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none"
             />
             <Button variant="primary" onClick={() => signInMutation.mutate()} disabled={!email || !password}>
               Sign In
@@ -318,14 +317,14 @@ export function SettingsPage() {
                       Enter current 6-digit TOTP code to confirm disabling 2FA:
                     </p>
                     <div className="flex gap-2">
-                      <input
+                      <Input
                         type="text"
                         inputMode="numeric"
                         maxLength={6}
                         placeholder="6-digit code"
                         value={twoFactorDisableCode}
                         onChange={(e) => setTwoFactorDisableCode(e.target.value.replace(/\D/g, ''))}
-                        className="w-36 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-sm text-white focus:border-rose-500 focus:outline-none"
+                        className="w-36 font-mono text-center tracking-widest text-sm text-white"
                       />
                       <Button
                         variant="danger"
@@ -383,14 +382,14 @@ export function SettingsPage() {
                     <div className="pt-2">
                       <span className="text-slate-300 font-medium">Verify with 6-digit code from your app:</span>
                       <div className="mt-2 flex gap-2">
-                        <input
+                        <Input
                           type="text"
                           inputMode="numeric"
                           maxLength={6}
                           placeholder="6-digit code"
                           value={twoFactorVerifyCode}
                           onChange={(e) => setTwoFactorVerifyCode(e.target.value.replace(/\D/g, ''))}
-                          className="w-36 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-sm text-white focus:border-sky-500 focus:outline-none"
+                          className="w-36 font-mono text-center tracking-widest text-sm text-white"
                         />
                         <Button
                           variant="primary"
@@ -624,18 +623,16 @@ export function SettingsPage() {
 
             {showManualOverride && (
               <div className="space-y-2.5 border-t border-slate-800 pt-3">
-                <input
+                <Input
                   placeholder="Groww TOTP Token (JWT)"
                   value={totpToken}
                   onChange={(e) => setTotpToken(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
                 />
-                <input
+                <Input
                   type="password"
                   placeholder="Base32 TOTP Secret (from QR)"
                   value={totpSecret}
                   onChange={(e) => setTotpSecret(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
                 />
                 <Button
                   variant="secondary"
@@ -729,37 +726,37 @@ export function SettingsPage() {
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-xs">
           <label className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 block">
             <span className="text-slate-400">Max Daily Loss (%)</span>
-            <input
+            <Input
               type="number"
               step="0.1"
               min={0.1}
               max={20}
               value={maxDailyLossPct}
               onChange={(e) => setMaxDailyLossPct(Number(e.target.value))}
-              className="mt-1.5 w-full rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 font-mono text-sm font-semibold text-rose-400 focus:border-sky-500 focus:outline-none"
+              className="mt-1.5 font-mono text-sm font-semibold text-rose-400"
             />
           </label>
           <label className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 block">
             <span className="text-slate-400">Max Open Positions</span>
-            <input
+            <Input
               type="number"
               min={1}
               max={20}
               value={maxPositions}
               onChange={(e) => setMaxPositions(Number(e.target.value))}
-              className="mt-1.5 w-full rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 font-mono text-sm font-semibold text-white focus:border-sky-500 focus:outline-none"
+              className="mt-1.5 font-mono text-sm font-semibold text-white"
             />
           </label>
           <label className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 block">
             <span className="text-slate-400">Per-Trade Risk (%)</span>
-            <input
+            <Input
               type="number"
               step="0.1"
               min={0.1}
               max={10}
               value={perTradeRiskPct}
               onChange={(e) => setPerTradeRiskPct(Number(e.target.value))}
-              className="mt-1.5 w-full rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 font-mono text-sm font-semibold text-sky-400 focus:border-sky-500 focus:outline-none"
+              className="mt-1.5 font-mono text-sm font-semibold text-sky-400"
             />
           </label>
           <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">

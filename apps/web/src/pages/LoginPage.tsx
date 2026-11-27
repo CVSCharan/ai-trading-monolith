@@ -6,6 +6,9 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, TrendingUp, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -79,36 +82,31 @@ export function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="email">
-                Email
-              </label>
-              <input
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
                 id="email"
                 type="email"
                 autoComplete="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition"
                 placeholder="admin@aitrader.in"
               />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="password">
-                Password
-              </label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
               <div className="relative">
-                <input
+                <Input
                   id="password"
                   type={showPw ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 pr-10 text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition"
                   placeholder="••••••••"
+                  className="pr-10"
                 />
                 <button
                   type="button"
@@ -124,33 +122,35 @@ export function LoginPage() {
             <div className="flex items-center justify-between">
               <Link
                 to="/forgot-password"
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition"
+                className="text-xs text-sky-400 hover:text-sky-300 transition"
               >
                 Forgot password?
               </Link>
             </div>
 
-            <button
+            <Button
               type="submit"
+              variant="primary"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="w-full flex items-center justify-center gap-2"
             >
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
               {isLoading ? 'Signing in…' : 'Sign In'}
-            </button>
+            </Button>
           </form>
 
           {/* Demo shortcut */}
           <div className="mt-5 pt-5 border-t border-slate-800">
             <p className="text-center text-xs text-slate-500 mb-3">Want to explore first?</p>
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={fillDemo}
-              className="w-full flex items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 py-2.5 text-sm font-semibold text-amber-300 hover:bg-amber-500/20 hover:border-amber-400/60 transition"
+              className="w-full flex items-center justify-center gap-2 border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:border-amber-400/60 font-semibold"
             >
               <TrendingUp className="h-4 w-4" />
               Use Demo Account
-            </button>
+            </Button>
             <p className="mt-2 text-center text-[11px] text-slate-500">
               Read-only · Pre-seeded paper trades · Simulated execution
             </p>

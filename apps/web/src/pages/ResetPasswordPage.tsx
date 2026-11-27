@@ -5,6 +5,9 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -94,20 +97,18 @@ export function ResetPasswordPage() {
                 </div>
               )}
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="new-password">
-                    New password
-                  </label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="new-password">New password</Label>
                   <div className="relative">
-                    <input
+                    <Input
                       id="new-password"
                       type={showPw ? 'text' : 'password'}
                       required
                       minLength={8}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 pr-10 text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition"
                       placeholder="Min. 8 characters"
+                      className="pr-10"
                     />
                     <button
                       type="button"
@@ -120,29 +121,27 @@ export function ResetPasswordPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-400" htmlFor="confirm-password">
-                    Confirm password
-                  </label>
-                  <input
+                <div className="space-y-1.5">
+                  <Label htmlFor="confirm-password">Confirm password</Label>
+                  <Input
                     id="confirm-password"
                     type="password"
                     required
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 transition"
                     placeholder="Repeat password"
                   />
                 </div>
 
-                <button
+                <Button
                   type="submit"
+                  variant="primary"
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition"
+                  className="w-full flex items-center justify-center gap-2"
                 >
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                   {isLoading ? 'Updating…' : 'Update Password'}
-                </button>
+                </Button>
               </form>
               <div className="mt-4 text-center">
                 <Link

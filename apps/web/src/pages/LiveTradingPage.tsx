@@ -6,6 +6,8 @@ import { RoleGuard } from '../components/AuthGuard';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
 import { QueryErrorState } from '../components/ui/query-feedback';
 import { fetchJson } from '../lib/api';
 import { SkeletonTable } from '../components/ui/skeleton';
@@ -199,41 +201,58 @@ export function LiveTradingPage() {
         </Card>
       )}
 
-      {showEnableModal && (
-        <Card className="border-cyan-500/50 bg-slate-900/90 shadow-2xl backdrop-blur-xl">
-          <CardHeader>
-            <CardTitle className="text-cyan-300">Operator 2FA Step-Up Verification</CardTitle>
-            <CardDescription>
+      <Dialog open={showEnableModal} onOpenChange={setShowEnableModal}>
+        <DialogContent onClose={() => { setShowEnableModal(false); setTotpCode(''); }}>
+          <DialogHeader>
+            <DialogTitle className="text-sky-300">Operator 2FA Step-Up Verification</DialogTitle>
+            <DialogDescription>
               Enter the current 6-digit TOTP code from your authenticator app to authorize live trading capital deployment.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex flex-col items-center gap-2">
+              <Input
                 type="text"
+                inputMode="numeric"
                 maxLength={6}
                 placeholder="000000"
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                className="w-full sm:w-48 font-mono text-center tracking-widest text-lg rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-white placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/50 outline-none"
+                className="w-48 font-mono text-center tracking-widest text-xl h-12 bg-slate-950 border-slate-700 text-white focus:border-sky-500"
+                autoFocus
               />
-              <Button
-                variant="primary"
-                disabled={totpCode.length !== 6 || enableMutation.isPending}
-                onClick={() => enableMutation.mutate(totpCode)}
-              >
-                {enableMutation.isPending ? 'Verifying 2FA…' : 'Verify & Enable Live Mode'}
-              </Button>
-              <Button variant="outline" onClick={() => { setShowEnableModal(false); setTotpCode(''); }}>
-                Cancel
-              </Button>
+              <span className="text-[11px] text-slate-400">Dynamic RFC 6238 Time-based Token</span>
             </div>
-            <p className="text-xs text-slate-400">
-              Need to set up authenticator 2FA? Visit <Link to="/settings" className="text-cyan-400 hover:underline">Settings &amp; Broker Connections</Link>.
+
+            <p className="text-xs text-slate-400 text-center">
+              Need to set up authenticator 2FA? Visit{' '}
+              <Link to="/settings" className="text-sky-400 hover:underline">
+                Settings &amp; Broker Connections
+              </Link>.
             </p>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEnableModal(false);
+                setTotpCode('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={totpCode.length !== 6 || enableMutation.isPending}
+              onClick={() => enableMutation.mutate(totpCode)}
+            >
+              {enableMutation.isPending ? 'Verifying 2FA…' : 'Verify & Enable Live Mode'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <RoleGuard role="SUPER_ADMIN" message="Live trading controls are restricted to SUPER_ADMIN.">
       <Card>

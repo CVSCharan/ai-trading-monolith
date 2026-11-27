@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '../components/ui/button';
+import { Switch } from '../components/ui/switch';
 import { SymbolSearchInput } from '../components/SymbolSearchInput';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { QueryErrorState } from '../components/ui/query-feedback';
 import { fetchJson } from '../lib/api';
+import { cn } from '../lib/utils';
 
 interface StrategyRow {
   id: string;
@@ -155,28 +157,31 @@ export function StrategyBuilderPage() {
                     {s.underlyingSymbol} · {s.timeframe} · {s.executionMode} · {s.lots} lot(s)
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 pr-2 border-r border-slate-800">
+                    <Switch
+                      id={`strategy-switch-${s.id}`}
+                      checked={s.isActive}
+                      onCheckedChange={async (checked) => {
+                        await fetch(`/api/strategies/${s.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          credentials: 'include',
+                          body: JSON.stringify({ isActive: checked }),
+                        });
+                        void qc.invalidateQueries({ queryKey: ['strategies'] });
+                      }}
+                      aria-label="Toggle active strategy"
+                    />
+                    <span className={cn('text-xs font-semibold', s.isActive ? 'text-emerald-400' : 'text-slate-500')}>
+                      {s.isActive ? 'Active' : 'Paused'}
+                    </span>
+                  </div>
+                  <Button
                     type="button"
-                    onClick={async () => {
-                      await fetch(`/api/strategies/${s.id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
-                        body: JSON.stringify({ isActive: !s.isActive }),
-                      });
-                      void qc.invalidateQueries({ queryKey: ['strategies'] });
-                    }}
-                    className={`rounded px-2.5 py-1 text-xs font-medium ${
-                      s.isActive
-                        ? 'bg-emerald-500/20 text-emerald-300'
-                        : 'bg-slate-800 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {s.isActive ? 'Active' : 'Paused'}
-                  </button>
-                  <button
-                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
                     onClick={async () => {
                       await fetch('/api/paper/start', {
                         method: 'POST',
@@ -185,12 +190,13 @@ export function StrategyBuilderPage() {
                         body: JSON.stringify({ strategyId: s.id }),
                       });
                     }}
-                    className="rounded bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-300 hover:bg-sky-500/30"
                   >
                     Launch Bot
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="secondary"
                     onClick={async () => {
                       await fetch(`/api/strategies/${s.id}/clone`, {
                         method: 'POST',
@@ -198,12 +204,13 @@ export function StrategyBuilderPage() {
                       });
                       void qc.invalidateQueries({ queryKey: ['strategies'] });
                     }}
-                    className="rounded bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700"
                   >
                     Clone
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="danger"
                     onClick={async () => {
                       await fetch(`/api/strategies/${s.id}`, {
                         method: 'DELETE',
@@ -211,10 +218,9 @@ export function StrategyBuilderPage() {
                       });
                       void qc.invalidateQueries({ queryKey: ['strategies'] });
                     }}
-                    className="rounded bg-rose-500/15 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-500/25"
                   >
                     Delete
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}

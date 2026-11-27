@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TradeCandlestickChart, type ChartCandle } from '../components/charts/TradeCandlestickChart';
+import { Button } from '../components/ui/button';
 import { Skeleton, SkeletonChart, SkeletonTable } from '../components/ui/skeleton';
 import { TradeContextPanel } from '../components/TradeContextPanel';
 import { QueryErrorState } from '../components/ui/query-feedback';
@@ -83,20 +84,22 @@ export function TradeAuditorPage() {
           <p className="text-xs text-slate-400">Use ← / → arrow keys to step between trades</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             disabled={!adjacent?.prevId}
             onClick={() => adjacent?.prevId && navigate(`/trade-auditor/${adjacent.prevId}`)}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40"
           >
             <ChevronLeft className="h-4 w-4" /> Prev
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             disabled={!adjacent?.nextId}
             onClick={() => adjacent?.nextId && navigate(`/trade-auditor/${adjacent.nextId}`)}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40"
           >
             Next <ChevronRight className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       </div>
 

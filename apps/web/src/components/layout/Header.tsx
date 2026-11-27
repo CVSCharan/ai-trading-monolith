@@ -1,10 +1,17 @@
-import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bot, ChevronDown, LogOut, Menu, Settings, UserCircle2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { Badge } from '../ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { NAV_GROUPS } from './Sidebar';
 import { MarketClockHeaderPill, MarketAlertToastBanner } from '../MarketSessionClocks';
 import { fetchJson } from '../../lib/api';
@@ -33,15 +40,10 @@ function getPageTitle(pathname: string): string {
 export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
   const location = useLocation();
   const { user, isDemo, logout } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
   const { events } = useWebSocket(['ticks']);
   const latestTick = events.find((e) => e.channel === 'ticks')?.data as
     | { instrumentKey?: string; ltp?: number }
     | undefined;
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [location.pathname]);
 
   const { data: health, isLoading: isHealthLoading, error: healthError } = useQuery<HealthResponse>({
     queryKey: ['api-health'],
@@ -110,58 +112,45 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
         <MarketClockHeaderPill />
 
         {user && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((o) => !o)}
-              className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/80 px-2.5 py-1.5 text-xs text-slate-200 hover:border-slate-700 transition-colors"
-            >
-              <UserCircle2 className="h-4 w-4 text-sky-400 shrink-0" />
-              <span className="hidden sm:inline max-w-[120px] truncate">{user.name || user.email}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-            </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger>
+              <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/80 px-2.5 py-1.5 text-xs text-slate-200 hover:border-slate-700 transition-colors">
+                <UserCircle2 className="h-4 w-4 text-sky-400 shrink-0" />
+                <span className="hidden sm:inline max-w-[120px] truncate">{user.name || user.email}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+              </div>
+            </DropdownMenuTrigger>
 
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 mt-2 w-56 z-50 rounded-xl border border-slate-800 bg-slate-900/95 backdrop-blur-xl p-1.5 shadow-2xl text-xs">
-                  <div className="px-3 py-2 border-b border-slate-800 mb-1">
-                    <div className="font-medium text-white truncate">{user.email}</div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">Role: {user.role}</div>
-                  </div>
-                  <Link
-                    to="/profile"
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800"
-                  >
-                    <UserCircle2 className="h-3.5 w-3.5 text-sky-400" />
-                    Profile &amp; Devices (Max 3)
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <div className="font-medium text-white truncate">{user.email}</div>
+                <div className="text-[11px] font-normal text-slate-400 mt-0.5">Role: {user.role}</div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => {}}>
+                <Link to="/profile" className="flex items-center gap-2 w-full">
+                  <UserCircle2 className="h-3.5 w-3.5 text-sky-400" />
+                  Profile &amp; Devices (Max 3)
+                </Link>
+              </DropdownMenuItem>
+              {!isDemo && (
+                <DropdownMenuItem onClick={() => {}}>
+                  <Link to="/settings" className="flex items-center gap-2 w-full">
+                    <Settings className="h-3.5 w-3.5 text-slate-400" />
+                    Broker &amp; Risk Settings
                   </Link>
-                  {!isDemo && (
-                    <Link
-                      to="/settings"
-                      onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-slate-200 hover:bg-slate-800"
-                    >
-                      <Settings className="h-3.5 w-3.5 text-slate-400" />
-                      Broker &amp; Risk Settings
-                    </Link>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      void logout();
-                    }}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-rose-400 hover:bg-rose-500/10 mt-1 border-t border-slate-800/80 pt-2"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                    Sign out
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => void logout()}
+                className="text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </header>

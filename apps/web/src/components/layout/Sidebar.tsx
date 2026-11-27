@@ -1,6 +1,7 @@
 import {
   Activity,
   BarChart3,
+  BookOpen,
   Bot,
   Layers,
   LineChart,
@@ -39,6 +40,7 @@ export const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
       { to: '/strategy/builder', label: 'Strategy Builder', icon: LineChart, demoAllowed: true },
       { to: '/backtest', label: 'Backtests', icon: BarChart3, demoAllowed: true },
       { to: '/trade-auditor', label: 'Trade Auditor', icon: TrendingUp, demoAllowed: true },
+      { to: '/academy', label: 'Strategy Handbook', icon: BookOpen, demoAllowed: true },
     ],
   },
   {

@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
 import { Skeleton } from './ui/skeleton';
 import { QueryErrorState } from './ui/query-feedback';
 import { fetchJson } from '../lib/api';
@@ -103,13 +104,13 @@ export function WatchlistPanel() {
         {showSearch && !isDemo && (
           <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
-              <input
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500 z-10" />
+              <Input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search instruments (e.g. NIFTY, BANKNIFTY)…"
-                className="w-full rounded-md border border-slate-700 bg-slate-900 py-1.5 pl-8 pr-3 text-xs text-white focus:border-sky-500 focus:outline-none"
+                className="pl-8 text-xs h-8 bg-slate-900 border-slate-700"
               />
             </div>
             <div className="max-h-36 space-y-1 overflow-y-auto">
