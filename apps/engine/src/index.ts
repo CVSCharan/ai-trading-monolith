@@ -21,6 +21,7 @@ import { ReconciliationService } from './services/reconciliation';
 import { MarketDataService } from './services/market-data';
 import { PaperTradingEngine } from './services/paper-trading';
 import { LiveTradingEngine, type LiveRiskConfig } from './services/live-trading';
+import { BrokerOrderSyncService } from './services/broker-order-sync';
 import { TradingScheduler } from './services/scheduler';
 
 // Logger (human-readable in dev, JSON + secret redaction in production)
@@ -68,6 +69,7 @@ const commandProcessor = new CommandProcessor(db, logger, growwClient);
 const paperEngine = new PaperTradingEngine(db, logger, growwClient, marketData);
 const liveEngine = new LiveTradingEngine(db, logger, growwClient);
 commandProcessor.setLiveEngine(liveEngine);
+const orderSync = new BrokerOrderSyncService(liveEngine, marketData.getBrokerRouter(), wsManager, logger);
 const scheduler = new TradingScheduler(db, logger, growwClient, alerting, wsManager);
 
 // Main engine loop state
@@ -265,6 +267,9 @@ async function startEngine() {
   // Start IST scheduler
   scheduler.start();
 
+  // Start resilient broker order fill stream / sync poller (S19-008)
+  orderSync.start();
+
   // Start command polling
   setInterval(pollCommands, COMMAND_POLL_INTERVAL);
 
@@ -346,6 +351,9 @@ async function shutdown() {
 
   // Stop scheduler
   scheduler.stop();
+
+  // Stop broker order fill sync
+  orderSync.stop();
 
   // Stop all active sessions
   await commandProcessor.stopAllSessions();

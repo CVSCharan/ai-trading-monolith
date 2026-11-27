@@ -246,6 +246,42 @@ export class UpstoxClient implements BrokerAdapter {
     return true;
   }
 
+  async getOrderBook(): Promise<Array<{
+    orderId: string;
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    status: 'OPEN' | 'PARTIAL' | 'COMPLETE' | 'REJECTED' | 'CANCELLED';
+    quantity: number;
+    filledQuantity: number;
+    avgPrice: number;
+    price: number;
+    placedAt?: string;
+  }>> {
+    const data = await this.request<Array<any>>('/v2/order/retrieve-all', {
+      token: this.getTradeToken(),
+    });
+    return (data ?? []).map((o) => {
+      const rawStatus = String(o.status || '').toUpperCase();
+      let status: 'OPEN' | 'PARTIAL' | 'COMPLETE' | 'REJECTED' | 'CANCELLED' = 'OPEN';
+      if (rawStatus === 'complete' || rawStatus === 'COMPLETE') status = 'COMPLETE';
+      else if (rawStatus === 'cancelled' || rawStatus === 'CANCELLED') status = 'CANCELLED';
+      else if (rawStatus === 'rejected' || rawStatus === 'REJECTED') status = 'REJECTED';
+      else if (Number(o.filled_quantity ?? 0) > 0 && Number(o.filled_quantity ?? 0) < Number(o.quantity ?? 0)) status = 'PARTIAL';
+
+      return {
+        orderId: String(o.order_id || ''),
+        symbol: String(o.tradingsymbol || o.instrument_token || ''),
+        side: String(o.transaction_type || '').toUpperCase() === 'SELL' ? 'SELL' : 'BUY',
+        status,
+        quantity: Number(o.quantity ?? 0),
+        filledQuantity: Number(o.filled_quantity ?? 0),
+        avgPrice: Number(o.average_price ?? 0),
+        price: Number(o.price ?? 0),
+        placedAt: o.order_timestamp,
+      };
+    });
+  }
+
   async getPositions(): Promise<BrokerPosition[]> {
     const data = await this.request<Array<{
       tradingsymbol: string;

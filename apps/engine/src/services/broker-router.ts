@@ -117,6 +117,52 @@ export class GrowwBrokerAdapter implements BrokerAdapter {
       usedMargin: Number(res?.payload?.utilized_margin ?? 0),
     };
   }
+
+  async getOrderBook(): Promise<Array<{
+    orderId: string;
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    status: 'OPEN' | 'PARTIAL' | 'COMPLETE' | 'REJECTED' | 'CANCELLED';
+    quantity: number;
+    filledQuantity: number;
+    avgPrice: number;
+    price: number;
+    placedAt?: string;
+  }>> {
+    try {
+      const raw = (await this.client.getOrderHistory()) as any;
+      const list = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.orders)
+            ? raw.orders
+            : [];
+
+      return list.map((o: any) => {
+        const rawStatus = String(o.order_status || o.status || '').toUpperCase();
+        let status: 'OPEN' | 'PARTIAL' | 'COMPLETE' | 'REJECTED' | 'CANCELLED' = 'OPEN';
+        if (rawStatus === 'COMPLETE' || rawStatus === 'FILLED' || rawStatus === 'EXECUTED') status = 'COMPLETE';
+        else if (rawStatus === 'CANCELLED' || rawStatus === 'CANCELED') status = 'CANCELLED';
+        else if (rawStatus === 'REJECTED') status = 'REJECTED';
+        else if (Number(o.filled_quantity ?? 0) > 0 && Number(o.filled_quantity ?? 0) < Number(o.quantity ?? 0)) status = 'PARTIAL';
+
+        return {
+          orderId: String(o.groww_order_id || o.order_id || o.id || ''),
+          symbol: String(o.symbol || o.trading_symbol || ''),
+          side: String(o.side || o.transaction_type || '').toUpperCase() === 'SELL' ? 'SELL' : 'BUY',
+          status,
+          quantity: Number(o.quantity ?? 0),
+          filledQuantity: Number(o.filled_quantity ?? o.cumulative_quantity ?? 0),
+          avgPrice: Number(o.avg_execution_price ?? o.average_price ?? o.price ?? 0),
+          price: Number(o.price ?? 0),
+          placedAt: o.order_time || o.created_at,
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
 }
 
 export interface BrokerRouter {

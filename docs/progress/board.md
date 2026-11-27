@@ -7,17 +7,16 @@
 
 ## 🔵 IN PROGRESS
 
-| Ticket | Title | Sprint | Owner | ETA |
-|--------|-------|--------|-------|-----|
-| S19-008 | Broker order fill stream: Pipe broker order update WebSocket events into `liveEngine.handleOrderUpdate` | Sprint 19 | Team | 2026-12-08 |
-| S19-011 | End-to-end integration test: Full bar → quote → order → fill → square-off test simulation | Sprint 19 | Team | 2026-12-10 |
+*All Sprint 19 execution tickets completed.* Pre-live paper trade validation and production deployment pending.
 
 ---
 
-## ✅ DONE (Recent S19 Releases)
+## ✅ DONE (Sprint 19 Releases)
 
 | Ticket | Title | Completed |
 |--------|-------|-----------|
+| S19-008 | Broker order fill stream ingestion & dual poller sync (`BrokerOrderSyncService`) | 2026-11-28 |
+| S19-011 | End-to-end multi-broker simulation test suite (`apps/engine/test/live-integration.test.ts`) | 2026-11-28 |
 | S19-007 | Live option quotes: Wire `optionPriceLookup` (`MarketData` cache + dataBroker/executionBroker quotes) in `apps/engine/src/index.ts` | 2026-11-28 |
 | S19-013 | Explicit reversal signal lifecycle: sequential close-then-open handling with PostgreSQL fill records | 2026-11-28 |
 | S19-014 | Comprehensive Shadcn UI design system (Popover, Slider, Progress, Separator, Checkbox, Textarea, Avatar, Sheet) | 2026-11-28 |

@@ -92,4 +92,15 @@ export interface BrokerAdapter {
   cancelOrder(orderId: string): Promise<boolean>;
   getPositions(): Promise<BrokerPosition[]>;
   getMargins(): Promise<BrokerMarginInfo>;
+  getOrderBook?(): Promise<Array<{
+    orderId: string;
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    status: 'OPEN' | 'PARTIAL' | 'COMPLETE' | 'REJECTED' | 'CANCELLED';
+    quantity: number;
+    filledQuantity: number;
+    avgPrice: number;
+    price: number;
+    placedAt?: string;
+  }>>;
 }
