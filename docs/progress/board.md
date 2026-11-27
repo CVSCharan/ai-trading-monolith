@@ -20,6 +20,8 @@
 
 | Ticket | Title | Completed |
 |--------|-------|-----------|
+| S19-014 | Comprehensive Shadcn UI design system (Popover, Slider, Progress, Separator, Checkbox, Textarea, Avatar, Sheet) | 2026-11-28 |
+| ACADEMY-001 | In-App Trading Academy & 9/21 EMA Strategy Cross-Verification Handbook (`/academy`) | 2026-11-28 |
 | S19-005 | Operator 2FA setup, verify, disable & dynamic step-up TOTP verification on `/api/live/enable` | 2026-11-28 |
 | S19-009 | Durable PostgreSQL live state (`live_fills` & `live_positions`), UUID idempotency, startup hydration | 2026-11-28 |
 | S19-010 | Startup reconciliation sequence before market feeds, state hydration on boot and live enable | 2026-11-28 |

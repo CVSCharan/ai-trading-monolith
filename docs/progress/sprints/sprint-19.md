@@ -72,6 +72,25 @@
   - Documented Static IP registration requirements for VPS deployment under NSE Circular INSP77559.
   - Prohibited naked market orders; mandated bounded marketable limit orders with tick-rounded price protection.
 
+### S19-014 — Comprehensive Shadcn UI Design System & Component Expansion ✅
+- **UI Components (`apps/web/src/components/ui/`)**:
+  - Audited all web pages and replaced raw HTML inputs, toggles, buttons, and popups with standardized, accessible Shadcn UI primitives.
+  - Created complete design system primitives: `Popover`, `Slider`, `Progress`, `Separator`, `Checkbox`, `Textarea`, `Avatar`, `Sheet`, `Dialog`, `Tabs`, `Switch`, `DropdownMenu`, `Tooltip`, `Label`, `Input`, `Button`, `Badge`, `Card`, `Table`, `Alert`, `Skeleton`.
+  - Added centralized barrel export (`apps/web/src/components/ui/index.ts`) for clean component consumption.
+  - Enhanced `Switch` with size variants (`sm`, `default`, `lg`) and keyboard Space/Enter activation.
+  - Enhanced `DropdownMenu` with keyboard accessibility and full subcomponents (`DropdownMenuCheckboxItem`, `DropdownMenuRadioItem`, `DropdownMenuGroup`, `DropdownMenuShortcut`).
+  - Integrated `Popover` into `MarketSessionClocks.tsx` for seamless multi-market clock popups.
+
+### ACADEMY-001 — In-App Trading Academy & Strategy Cross-Verification Handbook ✅
+- **Web App (`apps/web/src/pages/TradingAcademyPage.tsx` & `/academy` route)**:
+  - 5-module comprehensive interactive quantitative trading course:
+    1. 9/21 EMA Strategy Mechanics & Math (continuous EMA formulas, 09:30–11:30 entry window, 15:00 square-off, execution modes).
+    2. Signal-to-Trade Cross-Verification Handbook (6-point audit protocol for Trade Auditor).
+    3. Options Greeks ($\Delta$, $\Gamma$, $\Theta$, $\nu$) & 0-DTE gamma risk.
+    4. Interactive Signal Cross-Verification Sandbox with real-time strike, limit ceiling (+1%), and statutory charges calculation.
+    5. Regulatory Compliance & NSE Circular INSP77559 architecture.
+  - Linked in navigation sidebar (`apps/web/src/components/layout/Sidebar.tsx`) under "Strategy Handbook".
+
 ---
 
 ## 🔒 Remaining Live Trading Hardening Items (To Complete Before Live Execution)
