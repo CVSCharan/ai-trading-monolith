@@ -15,6 +15,8 @@ import { logAuditEvent } from '../middleware/audit-middleware';
 import { logger } from '../logger';
 import { and, desc, eq } from 'drizzle-orm';
 import { hashPassword, verifyPassword } from 'better-auth/crypto';
+import { authenticator } from 'otplib';
+import { encrypt, decrypt, getMasterKey } from '../utils/encryption';
 import { config } from '../config';
 import { MAX_ACTIVE_SESSIONS } from '../auth';
 
@@ -310,6 +312,143 @@ export const authExtraRoutes = new Elysia({ prefix: '/api/auth' })
       body: t.Object({
         currentPassword: t.String({ minLength: 1 }),
         newPassword: t.String({ minLength: 8, maxLength: 128 }),
+      }),
+    },
+  )
+
+  // ── GET /api/auth/2fa/status ─────────────────────────────────
+  .get('/2fa/status', async ({ userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const [profile] = await db
+      .select({
+        enabledAt: userProfiles.twoFactorEnabledAt,
+      })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId))
+      .limit(1);
+
+    return {
+      enabled: Boolean(profile?.enabledAt),
+      enabledAt: profile?.enabledAt?.toISOString() ?? null,
+    };
+  })
+
+  // ── POST /api/auth/2fa/setup ─────────────────────────────────
+  .post('/2fa/setup', async ({ userId, userRole, sessionUser, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+    if (!requireRole(userRole, 'SUPER_ADMIN', set)) {
+      return { error: '2FA is only available for administrative operators.' };
+    }
+
+    const secret = authenticator.generateSecret();
+    const email = sessionUser?.email ?? 'operator@aitrader.in';
+    const uri = authenticator.keyuri(email, 'AI Trader Terminal', secret);
+
+    return {
+      secret,
+      uri,
+    };
+  })
+
+  // ── POST /api/auth/2fa/verify ────────────────────────────────
+  .post(
+    '/2fa/verify',
+    async ({ body, userId, userRole, set }) => {
+      if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+      if (!requireRole(userRole, 'SUPER_ADMIN', set)) {
+        return { error: '2FA verification is not allowed for DEMO account.' };
+      }
+
+      const { code, secret } = body;
+      const isValid = authenticator.verify({ token: code, secret });
+      if (!isValid) {
+        set.status = 400;
+        return { error: 'Invalid 6-digit TOTP code. Verification failed.' };
+      }
+
+      const masterKey = getMasterKey();
+      const encryptedSecret = encrypt(secret, masterKey);
+      const now = new Date();
+
+      await db
+        .update(userProfiles)
+        .set({
+          twoFactorSecretEncrypted: encryptedSecret,
+          twoFactorEnabledAt: now,
+          updatedAt: now,
+        })
+        .where(eq(userProfiles.userId, userId));
+
+      await logAuditEvent({
+        userId,
+        action: 'OPERATOR_2FA_ENABLED',
+        entityType: 'user_profile',
+        entityId: userId,
+      });
+
+      logger.info({ userId }, 'Operator TOTP 2FA successfully enrolled and verified');
+      return { success: true, enabled: true, enabledAt: now.toISOString() };
+    },
+    {
+      body: t.Object({
+        code: t.String({ minLength: 6, maxLength: 6 }),
+        secret: t.String({ minLength: 16 }),
+      }),
+    },
+  )
+
+  // ── POST /api/auth/2fa/disable ───────────────────────────────
+  .post(
+    '/2fa/disable',
+    async ({ body, userId, userRole, set }) => {
+      if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+      if (!requireRole(userRole, 'SUPER_ADMIN', set)) {
+        return { error: 'Forbidden' };
+      }
+
+      const [profile] = await db
+        .select({
+          secretEncrypted: userProfiles.twoFactorSecretEncrypted,
+        })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, userId))
+        .limit(1);
+
+      if (!profile?.secretEncrypted) {
+        return { success: true, enabled: false };
+      }
+
+      const masterKey = getMasterKey();
+      const secret = decrypt(profile.secretEncrypted, masterKey);
+      const isValid = authenticator.verify({ token: body.code, secret });
+      if (!isValid) {
+        set.status = 400;
+        return { error: 'Invalid 6-digit code. Cannot disable 2FA without verification.' };
+      }
+
+      await db
+        .update(userProfiles)
+        .set({
+          twoFactorSecretEncrypted: null,
+          twoFactorEnabledAt: null,
+          liveTradingEnabled: false, // Disabling 2FA immediately revokes live trading authorization
+          updatedAt: new Date(),
+        })
+        .where(eq(userProfiles.userId, userId));
+
+      await logAuditEvent({
+        userId,
+        action: 'OPERATOR_2FA_DISABLED',
+        entityType: 'user_profile',
+        entityId: userId,
+      });
+
+      return { success: true, enabled: false };
+    },
+    {
+      body: t.Object({
+        code: t.String({ minLength: 6, maxLength: 6 }),
       }),
     },
   );

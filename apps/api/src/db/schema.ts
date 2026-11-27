@@ -98,6 +98,8 @@ export const userProfiles = pgTable('user_profiles', {
   role: varchar('role', { length: 20 }).notNull().default('SUPER_ADMIN'),
   liveTradingEnabled: boolean('live_trading_enabled').default(false),
   liveTradingApprovedAt: timestamp('live_trading_approved_at', { withTimezone: true }),
+  twoFactorSecretEncrypted: text('two_factor_secret_encrypted'),
+  twoFactorEnabledAt: timestamp('two_factor_enabled_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

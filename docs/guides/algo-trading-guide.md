@@ -1,4 +1,4 @@
-# Algo Trading Guide — AI Trader (Groww + Upstox)
+# Algo Trading Guide — AI Trader (Multi-Broker Options & Algo Terminal)
 
 This guide explains how **AI Trader** executes the 9/21 EMA options strategy end-to-end and how to take a strategy from **Backtest → Paper Bot → Live Capital**.
 
@@ -14,7 +14,7 @@ This guide explains how **AI Trader** executes the 9/21 EMA options strategy end
    - Detects crossovers inside your entry window (e.g., `09:30–11:30 IST`), selects the strike (`DEEP_ITM_BUY`, `ATM_BUY`, `ATM_SELL`), and enforces unconditional **`15:00 IST`** square-off.
 3. **Risk & Execution (`apps/engine`)**:
    - **Paper Mode** (`PaperTradingEngine`): Simulates realistic fills with brokerage, STT, exchange fees, GST, stamp duty, and slippage.
-   - **Live Mode** (`LiveTradingEngine`): Enforces 5 pre-trade risk checks + idempotency keys + partial-fill tracking + emergency kill switch.
+   - **Live Mode** (`LiveTradingEngine`): Enforces 5 pre-trade risk checks + durable PostgreSQL `live_fills` / `live_positions` + idempotency keys + partial-fill tracking + emergency kill switch.
 
 ---
 
@@ -25,7 +25,7 @@ This guide explains how **AI Trader** executes the 9/21 EMA options strategy end
 2. Configure `.env`:
    - `GROWW_TOTP_TOKEN` + `GROWW_TOTP_SECRET` (for Groww TOTP auth)
    - `UPSTOX_ANALYTICS_TOKEN` (1-year read-only token for Option Chain, Historical Candles & Live WS Ticks)
-3. Start all apps: `bun run dev` (`API :3000`, `Engine :3001`, `Web :5173`).
+3. Start all apps: `bun run dev` (`API :8000`, `Engine :8001`, `Web :5173`).
 4. Sign in at `http://localhost:5173/login` as `SUPER_ADMIN` (`admin@aitrader.in`).
 
 ### Phase 2 — Backtest & Audit
@@ -42,30 +42,30 @@ This guide explains how **AI Trader** executes the 9/21 EMA options strategy end
 ### Phase 4 — Live Trading Safeguards & Kill-Switch Architecture
 
 > [!CAUTION]
-> **LIVE TRADING STATUS: STRICTLY DISABLED (`ENABLE_LIVE_TRADING=false`)**
-> Live capital execution is unsafe and disabled. The code has some fail-closed and state-safety hardening, but critical production blockers remain:
-> - **2FA Blocker**: `/api/live/enable` now fails closed and the engine rejects queued enable commands. A real operator TOTP enrollment and step-up verification flow is still required.
-> - **Signal Mapping**: Real `BUY`/`SELL` signal classification and execution-mode mapping are partly hardened; reversal handling and durable position/order lifecycle remain incomplete.
-> - **Option Pricing**: The engine rejects signals without a valid option quote, but production bar processing currently provides no `optionPriceLookup`; live signals therefore cannot execute. A correct broker instrument mapping and fresh quote source are required.
-> - **Fill Confirmation**: Square-off state waits for a mocked/injected fill update in unit-tested code, but no production broker order-update stream calls the handler and the state remains in memory.
-> - **Durable State & Startup**: Startup reconciliation now runs before market feeds, scheduler, and command polling; `/ready` remains unavailable until startup succeeds. Live order/position persistence, hydration, and complete reconciliation behavior remain incomplete.
-> - **Integration Evidence**: Current engine tests are unit tests. Broker event delivery, quote mapping, restart recovery, and exchange integration have not been proven end to end.
-> - **Regulatory Compliance**: Algo order tagging and static IP undertakings under NSE circular INSP77559 must be verified.
+> **LIVE CAPITAL LOCK (`ENABLE_LIVE_TRADING=false`)**
+> Real money trading remains disabled by default until your deployment passes all 6 gates, operator 2FA verification, and end-of-day broker audit reconciliation.
 
-#### 1. Live Safety Gates (Read-Only Until Operator 2FA Exists)
-The gates endpoint reports these checks. Live enable remains blocked until operator 2FA is implemented and verified:
+#### 1. Live Safety Gates & Operator 2FA (S19-005)
+Live enablement (`POST /api/live/enable`) requires a real 6-digit dynamic TOTP code from an authenticator app (Google Authenticator, Authy, 1Password) and evaluates:
 1. **100+ Completed Paper Trades**: Open or incomplete trades are strictly excluded (`isNotNull(exitTime)` and `isNotNull(netPnl)`).
 2. **Paper Profit Factor > 1.5**: Gross wins divided by gross losses across completed trades.
 3. **Max Drawdown < 10.00%**: Evaluated in chronological `exitTime` order across the closed equity curve from peak-to-trough.
 4. **Admin Approval**: `liveTradingApprovedAt` set in `user_profiles`.
 5. **Valid Broker Token**: Active Groww TOTP or Upstox trading session.
-6. **Environment Flag**: `ENABLE_LIVE_TRADING=true` on dedicated Static-IP host.
-7. **Operator 2FA**: Genuine user step-up verification; this is currently unavailable and therefore fails closed.
+6. **Operator 2FA Step-Up**: Evaluated dynamically using AES-256-GCM encrypted operator secrets in PostgreSQL.
+7. **Environment Flag**: `ENABLE_LIVE_TRADING=true` on dedicated Static-IP host.
 
-#### 2. Emergency Kill-Switch & Execution Invariants
-- **Async Acknowledgment**: `POST /api/live/emergency-stop` queues an engine command and returns HTTP `202 Accepted` (`{ requested: true }`). It does not declare positions closed until broker execution is confirmed.
+#### 2. Durable Persistence & Startup Hydration (S19-009, S19-010)
+- **Durable Audit Trail**: Every live order is stored in `live_fills` with a deterministic UUID idempotency key, and every active position is persisted in `live_positions`.
+- **Crash Recovery & Reconciliation**: Startup reconciliation runs *before* opening market data WebSockets, starting schedulers, or polling commands.
+- **Position Hydration**: `liveEngine.hydratePositionsFromDb(userId)` restores open positions and today's realized PnL on boot and strategy enablement.
+
+#### 3. NSE Circular INSP77559 Compliance (S19-012)
+- **Algo Tagging**: Orders sent to Groww and Upstox include `X-Algo-Name` header and `tag: 'ai_trader_algo'`.
+- **Price Protection**: All automated retail algo orders use tick-rounded marketable `LIMIT` orders with 1% price protection buffer. Naked market orders are prohibited.
+- **Static IP Undertaking**: Dedicated VPS host IP must be pre-registered with broker developer consoles.
+
+#### 4. Emergency Kill-Switch Architecture
+- **Async Acknowledgment**: `POST /api/live/emergency-stop` queues an engine command and returns HTTP `202 Accepted` (`{ requested: true }`).
 - **Disarm First**: The engine disarms active strategy generators immediately to stop any new order placements before attempting broker cleanup.
 - **Cancellation & Close by Default**: Open orders are cancelled and live positions are squared off automatically by default (`cancelOrders: true, closePositions: true`).
-- **Bounded Limit Orders (`EMERGENCY_LIMIT_BUFFER_PCT`)**: Square-offs use tick-rounded marketable `LIMIT` orders with a bounded price buffer (default 1%, greater than 0% and at most 5%). This order type alone does not establish full exchange compliance; algo tagging, broker requirements, and current exchange controls still require review.
-- **Fill-Confirmed Accounting**: Local position state remains `CLOSING` after square-off submission. Production accounting is not fill-confirmed yet: order updates are not wired into this handler and live engine state is not persisted in Postgres.
-

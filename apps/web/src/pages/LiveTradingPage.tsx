@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, ShieldAlert, XCircle } from 'lucide-react';
 import { RoleGuard } from '../components/AuthGuard';
@@ -33,6 +34,8 @@ interface GatesResponse {
 
 export function LiveTradingPage() {
   const [confirmStop, setConfirmStop] = useState(false);
+  const [showEnableModal, setShowEnableModal] = useState(false);
+  const [totpCode, setTotpCode] = useState('');
   const [feedback, setFeedback] = useState('');
 
   const { data: gatesData, refetch, error: gatesError, isLoading: isGatesLoading } = useQuery<GatesResponse>({
@@ -56,17 +59,21 @@ export function LiveTradingPage() {
   });
 
   const enableMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (code: string) => {
       const res = await fetch('/api/live/enable', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({ code }),
       });
       const json = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(json.error ?? 'Failed to enable live trading');
       return json;
     },
     onSuccess: () => {
-      setFeedback('Live trading enabled.');
+      setShowEnableModal(false);
+      setTotpCode('');
+      setFeedback('Live trading enabled successfully after verified step-up 2FA.');
       void refetch();
     },
     onError: (e: Error) => setFeedback(e.message),
@@ -192,6 +199,42 @@ export function LiveTradingPage() {
         </Card>
       )}
 
+      {showEnableModal && (
+        <Card className="border-cyan-500/50 bg-slate-900/90 shadow-2xl backdrop-blur-xl">
+          <CardHeader>
+            <CardTitle className="text-cyan-300">Operator 2FA Step-Up Verification</CardTitle>
+            <CardDescription>
+              Enter the current 6-digit TOTP code from your authenticator app to authorize live trading capital deployment.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                maxLength={6}
+                placeholder="000000"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                className="w-full sm:w-48 font-mono text-center tracking-widest text-lg rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-white placeholder-slate-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/50 outline-none"
+              />
+              <Button
+                variant="primary"
+                disabled={totpCode.length !== 6 || enableMutation.isPending}
+                onClick={() => enableMutation.mutate(totpCode)}
+              >
+                {enableMutation.isPending ? 'Verifying 2FA…' : 'Verify & Enable Live Mode'}
+              </Button>
+              <Button variant="outline" onClick={() => { setShowEnableModal(false); setTotpCode(''); }}>
+                Cancel
+              </Button>
+            </div>
+            <p className="text-xs text-slate-400">
+              Need to set up authenticator 2FA? Visit <Link to="/settings" className="text-cyan-400 hover:underline">Settings &amp; Broker Connections</Link>.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <RoleGuard role="SUPER_ADMIN" message="Live trading controls are restricted to SUPER_ADMIN.">
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -203,7 +246,7 @@ export function LiveTradingPage() {
             variant="primary"
             size="sm"
             disabled={!allPassed || enableMutation.isPending}
-            onClick={() => enableMutation.mutate()}
+            onClick={() => setShowEnableModal(true)}
           >
             Enable Live Mode
           </Button>

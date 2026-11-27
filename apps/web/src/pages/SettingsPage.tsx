@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Activity, CheckCircle2, ChevronDown, KeyRound, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Activity, CheckCircle2, ChevronDown, KeyRound, RefreshCw, ShieldAlert, ShieldCheck, Smartphone } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -29,6 +29,11 @@ interface UpstoxStatusResponse {
   activeExecutionBroker: 'groww' | 'upstox';
 }
 
+interface TwoFactorStatusResponse {
+  enabled: boolean;
+  enabledAt: string | null;
+}
+
 export function SettingsPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,6 +45,73 @@ export function SettingsPage() {
   const [maxPositions, setMaxPositions] = useState(3);
   const [perTradeRiskPct, setPerTradeRiskPct] = useState(1);
   const [shortOptionStopLossPct, setShortOptionStopLossPct] = useState(100);
+  const [twoFactorSetupData, setTwoFactorSetupData] = useState<{ secret: string; uri: string } | null>(null);
+  const [twoFactorVerifyCode, setTwoFactorVerifyCode] = useState('');
+  const [twoFactorDisableCode, setTwoFactorDisableCode] = useState('');
+  const [showDisable2FA, setShowDisable2FA] = useState(false);
+
+  const { data: twoFactorStatus, refetch: refetch2FA } = useQuery<TwoFactorStatusResponse>({
+    queryKey: ['2fa-status'],
+    queryFn: () => fetchJson<TwoFactorStatusResponse>('/api/auth/2fa/status', { credentials: 'include' }),
+  });
+
+  const setup2FAMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/auth/2fa/setup', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to generate 2FA secret');
+      return res.json() as Promise<{ secret: string; uri: string }>;
+    },
+    onSuccess: (data) => {
+      setTwoFactorSetupData(data);
+      setStatusMsg('2FA secret generated. Scan or copy it into your authenticator app.');
+    },
+    onError: (e: Error) => setStatusMsg(e.message),
+  });
+
+  const verify2FAMutation = useMutation({
+    mutationFn: async ({ code, secret }: { code: string; secret: string }) => {
+      const res = await fetch('/api/auth/2fa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ code, secret }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? '2FA verification failed');
+      return data;
+    },
+    onSuccess: () => {
+      setTwoFactorSetupData(null);
+      setTwoFactorVerifyCode('');
+      setStatusMsg('Operator 2FA successfully activated.');
+      void refetch2FA();
+    },
+    onError: (e: Error) => setStatusMsg(e.message),
+  });
+
+  const disable2FAMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const res = await fetch('/api/auth/2fa/disable', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ code }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Failed to disable 2FA');
+      return data;
+    },
+    onSuccess: () => {
+      setShowDisable2FA(false);
+      setTwoFactorDisableCode('');
+      setStatusMsg('Operator 2FA disabled.');
+      void refetch2FA();
+    },
+    onError: (e: Error) => setStatusMsg(e.message),
+  });
 
   const { error: profileError, isLoading: isProfileLoading } = useQuery({
     queryKey: ['user-profile'],
@@ -196,6 +268,306 @@ export function SettingsPage() {
             <Button variant="primary" onClick={() => signInMutation.mutate()} disabled={!email || !password}>
               Sign In
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-start justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-sky-400" />
+                Operator Two-Factor Authentication (2FA)
+              </CardTitle>
+              <CardDescription>
+                RFC 6238 TOTP authenticator required for live trading step-up verification
+              </CardDescription>
+            </div>
+            <Badge variant={twoFactorStatus?.enabled ? 'success' : 'warning'}>
+              {twoFactorStatus?.enabled ? '2FA Enrolled & Active' : '2FA Not Enrolled'}
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {twoFactorStatus?.enabled ? (
+              <div className="space-y-3">
+                <div className="space-y-1.5 rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-3 text-xs">
+                  <div className="flex items-center gap-2 text-emerald-400 font-medium">
+                    <ShieldCheck className="h-4 w-4" />
+                    Operator hardware/app TOTP protection is active
+                  </div>
+                  <p className="text-slate-400">
+                    Live trading activation gate passes. Every live enablement requires a 6-digit dynamic TOTP code.
+                  </p>
+                  {twoFactorStatus.enabledAt && (
+                    <div className="text-[11px] text-slate-500 font-mono">
+                      Enrolled: {new Date(twoFactorStatus.enabledAt).toLocaleString('en-IN')}
+                    </div>
+                  )}
+                </div>
+
+                {!showDisable2FA ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDisable2FA(true)}
+                  >
+                    Disable Operator 2FA
+                  </Button>
+                ) : (
+                  <div className="space-y-2.5 rounded-lg border border-rose-900/40 bg-rose-950/20 p-3 text-xs">
+                    <p className="text-rose-300 font-medium">
+                      Enter current 6-digit TOTP code to confirm disabling 2FA:
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="6-digit code"
+                        value={twoFactorDisableCode}
+                        onChange={(e) => setTwoFactorDisableCode(e.target.value.replace(/\D/g, ''))}
+                        className="w-36 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-sm text-white focus:border-rose-500 focus:outline-none"
+                      />
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => disable2FAMutation.mutate(twoFactorDisableCode)}
+                        disabled={twoFactorDisableCode.length !== 6 || disable2FAMutation.isPending}
+                      >
+                        {disable2FAMutation.isPending ? 'Disabling…' : 'Confirm Disable'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowDisable2FA(false);
+                          setTwoFactorDisableCode('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {!twoFactorSetupData ? (
+                  <div className="space-y-3">
+                    <p className="text-xs text-slate-400">
+                      Link Google Authenticator, Authy, or 1Password to protect live capital deployment and satisfy the mandatory live trading gate.
+                    </p>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setup2FAMutation.mutate()}
+                      disabled={setup2FAMutation.isPending}
+                    >
+                      <Smartphone className="h-3.5 w-3.5" />
+                      {setup2FAMutation.isPending ? 'Generating Secret…' : 'Enroll Authenticator 2FA'}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-xs">
+                    <div>
+                      <span className="text-slate-400">Manual Entry Key (Base32):</span>
+                      <div className="mt-1 select-all rounded bg-slate-900 p-2 font-mono text-xs font-semibold text-sky-300">
+                        {twoFactorSetupData.secret}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Authenticator URI:</span>
+                      <div className="mt-1 break-all rounded bg-slate-900 p-1.5 font-mono text-[10px] text-slate-400">
+                        {twoFactorSetupData.uri}
+                      </div>
+                    </div>
+                    <div className="pt-2">
+                      <span className="text-slate-300 font-medium">Verify with 6-digit code from your app:</span>
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          placeholder="6-digit code"
+                          value={twoFactorVerifyCode}
+                          onChange={(e) => setTwoFactorVerifyCode(e.target.value.replace(/\D/g, ''))}
+                          className="w-36 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-sm text-white focus:border-sky-500 focus:outline-none"
+                        />
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() =>
+                            verify2FAMutation.mutate({
+                              code: twoFactorVerifyCode,
+                              secret: twoFactorSetupData.secret,
+                            })
+                          }
+                          disabled={twoFactorVerifyCode.length !== 6 || verify2FAMutation.isPending}
+                        >
+                          {verify2FAMutation.isPending ? 'Verifying…' : 'Verify & Activate'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setTwoFactorSetupData(null);
+                            setTwoFactorVerifyCode('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-start justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-sky-400" />
+                Operator 2FA (TOTP)
+              </CardTitle>
+              <CardDescription>Mandatory step-up authenticator required to unlock live trading</CardDescription>
+            </div>
+            <Badge variant={twoFactorStatus?.enabled ? 'success' : 'warning'}>
+              {twoFactorStatus?.enabled ? '2FA Active' : 'Not Enrolled'}
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!twoFactorStatus?.enabled && !twoFactorSetupData && (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-400">
+                  Enroll an RFC 6238 authenticator app (Google Authenticator, Authy, 1Password) to satisfy the live trading gate and protect execution commands.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setup2FAMutation.mutate()}
+                  disabled={setup2FAMutation.isPending}
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
+                  {setup2FAMutation.isPending ? 'Generating Secret…' : 'Enroll Authenticator App'}
+                </Button>
+              </div>
+            )}
+
+            {!twoFactorStatus?.enabled && twoFactorSetupData && (
+              <div className="space-y-3 rounded-lg border border-sky-500/20 bg-sky-950/20 p-3 text-xs">
+                <div>
+                  <span className="text-slate-400">Authenticator Secret Key (Base32):</span>
+                  <div className="mt-1 flex items-center justify-between rounded bg-slate-900 px-2.5 py-1.5 font-mono font-bold text-sky-300 select-all">
+                    <span>{twoFactorSetupData.secret}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Add this key as a Time-based (TOTP) account in Google Authenticator or 1Password.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-slate-300 font-medium">Verify 6-digit Code to Activate:</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      placeholder="e.g. 123456"
+                      value={twoFactorVerifyCode}
+                      onChange={(e) => setTwoFactorVerifyCode(e.target.value.replace(/\D/g, ''))}
+                      className="w-36 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-center text-sm font-semibold text-white tracking-widest focus:border-sky-500 focus:outline-none"
+                    />
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() =>
+                        verify2FAMutation.mutate({
+                          code: twoFactorVerifyCode,
+                          secret: twoFactorSetupData.secret,
+                        })
+                      }
+                      disabled={twoFactorVerifyCode.length !== 6 || verify2FAMutation.isPending}
+                    >
+                      {verify2FAMutation.isPending ? 'Verifying…' : 'Activate 2FA'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setTwoFactorSetupData(null);
+                        setTwoFactorVerifyCode('');
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {twoFactorStatus?.enabled && (
+              <div className="space-y-3">
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/20 p-3 text-xs">
+                  <div className="flex items-center gap-1.5 font-medium text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Operator 2FA Enrolled &amp; Protected
+                  </div>
+                  <p className="mt-1 text-slate-400">
+                    Enrolled {twoFactorStatus.enabledAt ? new Date(twoFactorStatus.enabledAt).toLocaleString('en-IN') : 'Active'}.
+                    Live trading gate &lsquo;Operator 2FA&rsquo; is passing.
+                  </p>
+                </div>
+
+                {!showDisable2FA ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDisable2FA(true)}
+                  >
+                    Disable Operator 2FA
+                  </Button>
+                ) : (
+                  <div className="space-y-2 rounded-lg border border-rose-500/30 bg-rose-950/20 p-3 text-xs">
+                    <div className="flex items-center gap-1.5 font-medium text-rose-300">
+                      <ShieldAlert className="h-4 w-4" />
+                      Confirm 2FA Deactivation
+                    </div>
+                    <p className="text-slate-400">
+                      Disabling 2FA will immediately fail live trading gates. Enter your current 6-digit TOTP code to confirm.
+                    </p>
+                    <div className="flex gap-2 pt-1">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="6-digit code"
+                        value={twoFactorDisableCode}
+                        onChange={(e) => setTwoFactorDisableCode(e.target.value.replace(/\D/g, ''))}
+                        className="w-32 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-center text-sm font-semibold text-white tracking-widest focus:border-rose-500 focus:outline-none"
+                      />
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => disable2FAMutation.mutate(twoFactorDisableCode)}
+                        disabled={twoFactorDisableCode.length !== 6 || disable2FAMutation.isPending}
+                      >
+                        {disable2FAMutation.isPending ? 'Disabling…' : 'Confirm Disable'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowDisable2FA(false);
+                          setTwoFactorDisableCode('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

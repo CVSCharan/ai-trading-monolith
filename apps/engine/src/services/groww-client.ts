@@ -177,6 +177,7 @@ export class GrowwClient {
   }): Promise<unknown> {
     const token = await this.getAccessToken();
     const idempotencyKey = crypto.randomUUID();
+    const algoName = process.env['GROWW_ALGO_NAME'] || process.env['ALGO_NAME'] || 'AI_TRADER_921_EMA';
 
     const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/orders`, {
       method: 'POST',
@@ -184,8 +185,12 @@ export class GrowwClient {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
         'X-Idempotency-Key': idempotencyKey,
+        'X-Algo-Name': algoName,
       },
-      body: JSON.stringify(order),
+      body: JSON.stringify({
+        ...order,
+        tag: 'ai_trader_algo',
+      }),
     });
 
     if (!response.ok) {

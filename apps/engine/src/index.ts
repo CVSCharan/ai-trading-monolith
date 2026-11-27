@@ -67,6 +67,7 @@ const marketData = new MarketDataService(growwClient, db, logger);
 const commandProcessor = new CommandProcessor(db, logger, growwClient);
 const paperEngine = new PaperTradingEngine(db, logger, growwClient, marketData);
 const liveEngine = new LiveTradingEngine(db, logger, growwClient);
+commandProcessor.setLiveEngine(liveEngine);
 const scheduler = new TradingScheduler(db, logger, growwClient, alerting, wsManager);
 
 // Main engine loop state
@@ -120,6 +121,7 @@ async function startEngine() {
       await reconciliation.reconcileOnStart(userId, 'paper', growwClient);
       if (process.env['ENABLE_LIVE_TRADING'] === 'true') {
         await reconciliation.reconcileOnStart(userId, 'live', growwClient);
+        await liveEngine.hydratePositionsFromDb(userId);
       }
     }
     logger.info({ reconciledUsers: activeUsers.length }, 'Startup reconciliation complete');

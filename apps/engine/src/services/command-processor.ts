@@ -12,6 +12,7 @@ import {
   paperPortfolios,
   paperPositions,
   strategies as strategiesTable,
+  userProfiles,
 } from '../../../api/src/db/schema';
 import { eq, and, inArray, isNull, desc, sql } from 'drizzle-orm';
 import { GrowwClient } from './groww-client';
@@ -26,6 +27,7 @@ export class CommandProcessor {
   private logger: pino.Logger;
   private activeSessions: Map<string, { paper?: any; live?: any }> = new Map();
   private errorCount = 0;
+  private liveEngine?: any;
 
   constructor(
     private db: any,
@@ -33,6 +35,10 @@ export class CommandProcessor {
     private growwClient: GrowwClient
   ) {
     this.logger = logger.child({ component: 'CommandProcessor' });
+  }
+
+  setLiveEngine(liveEngine: any): void {
+    this.liveEngine = liveEngine;
   }
 
   getActiveSessions(): Map<string, { paper?: any; live?: any }> {
@@ -153,11 +159,69 @@ export class CommandProcessor {
     return { stopped: true };
   }
 
-  private async enableLive(_userId: string, _payload: any): Promise<any> {
-    // Defense in depth: do not trust a boolean supplied in a queued command as
-    // proof of operator 2FA. The API has no enrolled operator-authenticator
-    // flow yet, so reject even stale commands that contain the old assertion.
-    throw new Error('Live trading is disabled until operator 2FA verification is implemented.');
+  private async enableLive(userId: string, payload: any): Promise<any> {
+    if (process.env['ENABLE_LIVE_TRADING'] !== 'true') {
+      throw new Error('Live trading is disabled on the engine. Set ENABLE_LIVE_TRADING=true to permit live execution.');
+    }
+
+    if (!payload?.twoFactorVerifiedAt) {
+      throw new Error('Live trading command rejected: missing verified operator twoFactorVerifiedAt timestamp.');
+    }
+
+    // Verify operator profile has 2FA enabled in DB
+    const [profile] = await this.db
+      .select({ twoFactorEnabledAt: userProfiles.twoFactorEnabledAt })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId))
+      .limit(1);
+
+    if (!profile?.twoFactorEnabledAt) {
+      throw new Error('Live trading command rejected: operator profile does not have active twoFactorEnabledAt enrollment.');
+    }
+
+    const { strategyIds = [] } = payload;
+    if (!strategyIds.length) {
+      throw new Error('Live trading command rejected: at least one strategyId is required.');
+    }
+
+    // Hydrate durable live positions
+    if (this.liveEngine) {
+      await this.liveEngine.hydratePositionsFromDb(userId);
+    }
+
+    // Initialize strategy generators for live trading
+    const generators = new Map();
+    for (const strategyId of strategyIds) {
+      const strategy = await this.loadStrategy(strategyId);
+      if (!strategy) continue;
+      const instruments = await this.loadInstruments();
+      const generator = new StreamingSignalGenerator(strategy, instruments, 'live');
+      generators.set(strategyId, { generator, strategy, instruments, position: null });
+    }
+
+    let session = this.activeSessions.get(userId);
+    if (!session) {
+      session = {};
+      this.activeSessions.set(userId, session);
+    }
+    session.live = { generators, enabledAt: new Date() };
+
+    // Update engine state in DB
+    await this.db
+      .insert(engineState)
+      .values({
+        userId,
+        runType: 'live',
+        isRunning: true,
+        lastHeartbeat: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [engineState.userId, engineState.runType],
+        set: { isRunning: true, lastHeartbeat: new Date(), updatedAt: new Date() },
+      });
+
+    return { enabled: true, liveStrategies: strategyIds, twoFactorVerifiedAt: payload.twoFactorVerifiedAt };
   }
 
   private async disableLive(userId: string, payload: any): Promise<any> {

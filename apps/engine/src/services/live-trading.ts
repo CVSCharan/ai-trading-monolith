@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto';
 import type pino from 'pino';
 import type { Signal } from '@groww-trading/strategy-core';
 import type { GrowwClient } from './groww-client';
+import { livePositions, liveFills } from '../../../api/src/db/schema';
+import { eq, and, isNull, gte } from 'drizzle-orm';
 
 export interface LiveRiskConfig {
   capital: number;
@@ -43,6 +46,14 @@ export interface LiveOrderResponse {
   avgPrice?: number;
 }
 
+export function stringToUuid(str: string): string {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)) {
+    return str.toLowerCase();
+  }
+  const hash = createHash('sha1').update(str).digest('hex');
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
 function getISTMinutes(date: Date): number {
   const ist = new Date(date.getTime() + 330 * 60_000);
   return ist.getUTCHours() * 60 + ist.getUTCMinutes();
@@ -55,11 +66,90 @@ export class LiveTradingEngine {
   private dailyRealizedPnl = 0;
 
   constructor(
-    private db: unknown,
+    private db: any,
     logger: pino.Logger,
     private growwClient: GrowwClient
   ) {
     this.logger = logger.child({ component: 'LiveTradingEngine' });
+  }
+
+  /**
+   * Hydrate positions, daily P&L, and idempotency store from PostgreSQL on boot or strategy enable (S19-009).
+   */
+  async hydratePositionsFromDb(userId: string): Promise<void> {
+    if (!this.db) return;
+
+    try {
+      const openDbPositions = await this.db
+        .select()
+        .from(livePositions)
+        .where(and(eq(livePositions.userId, userId), isNull(livePositions.closedAt)));
+
+      for (const pos of openDbPositions) {
+        const side: 'BUY' | 'SELL' = pos.side === 'LONG' ? 'BUY' : 'SELL';
+        this.positions.set(pos.optionSymbol, {
+          id: pos.id,
+          userId: pos.userId,
+          optionSymbol: pos.optionSymbol,
+          side,
+          targetQuantity: pos.quantity,
+          filledQuantity: pos.quantity,
+          avgEntryPrice: Number(pos.avgEntryPrice),
+          currentPrice: Number(pos.currentPrice ?? pos.avgEntryPrice),
+          status: 'OPEN',
+          idempotencyKey: pos.id,
+        });
+      }
+
+      // Restore today's realized PnL
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const closedToday = await this.db
+        .select()
+        .from(livePositions)
+        .where(
+          and(
+            eq(livePositions.userId, userId),
+            gte(livePositions.openedAt, startOfDay)
+          )
+        );
+
+      let todayPnl = 0;
+      for (const p of closedToday) {
+        if (p.realizedPnl) {
+          todayPnl += Number(p.realizedPnl);
+        }
+      }
+      this.dailyRealizedPnl = todayPnl;
+
+      // Restore recent orders into idempotencyStore
+      const recentFills = await this.db
+        .select()
+        .from(liveFills)
+        .where(
+          and(
+            eq(liveFills.userId, userId),
+            gte(liveFills.placedAt, startOfDay)
+          )
+        );
+
+      for (const fill of recentFills) {
+        this.idempotencyStore.set(fill.idempotencyKey, {
+          orderId: fill.growwOrderId ?? fill.id,
+          status: fill.status,
+          filledQuantity: fill.filledQuantity ?? 0,
+          avgPrice: Number(fill.avgFillPrice ?? 0),
+        });
+      }
+
+      this.logger.info(
+        { userId, hydratedPositions: openDbPositions.length, dailyRealizedPnl: this.dailyRealizedPnl },
+        'Hydrated live positions from PostgreSQL'
+      );
+    } catch (err) {
+      this.logger.error({ err, userId }, 'Failed to hydrate live positions from PostgreSQL');
+    }
   }
 
   /**
@@ -100,7 +190,7 @@ export class LiveTradingEngine {
   }
 
   /**
-   * Place a live order with idempotency protection (S6-004).
+   * Place a live order with idempotency protection and durable PostgreSQL audit persistence (S6-004, S19-009).
    * Uses the strategy side for both entries and exits. Requires an option premium;
    * underlying spot is not a valid substitute for an option limit price.
    */
@@ -113,10 +203,36 @@ export class LiveTradingEngine {
     optionPrice?: number,
     now: Date = new Date()
   ): Promise<{ executed: boolean; order?: LiveOrderResponse; reason?: string }> {
-    const existing = this.idempotencyStore.get(idempotencyKey);
+    const fillUuid = stringToUuid(idempotencyKey);
+    const existing = this.idempotencyStore.get(idempotencyKey) || this.idempotencyStore.get(fillUuid);
     if (existing) {
-      this.logger.warn({ idempotencyKey }, 'Duplicate order blocked by idempotency key');
+      this.logger.warn({ idempotencyKey }, 'Duplicate order blocked by in-memory idempotency key');
       return { executed: false, order: existing, reason: 'Duplicate idempotency key' };
+    }
+
+    if (this.db) {
+      try {
+        const [dbExisting] = await this.db
+          .select()
+          .from(liveFills)
+          .where(eq(liveFills.idempotencyKey, fillUuid))
+          .limit(1);
+
+        if (dbExisting) {
+          const res: LiveOrderResponse = {
+            orderId: dbExisting.growwOrderId ?? dbExisting.id,
+            status: dbExisting.status,
+            filledQuantity: dbExisting.filledQuantity ?? 0,
+            avgPrice: Number(dbExisting.avgFillPrice ?? 0),
+          };
+          this.idempotencyStore.set(idempotencyKey, res);
+          this.idempotencyStore.set(fillUuid, res);
+          this.logger.warn({ idempotencyKey }, 'Duplicate order blocked by PostgreSQL idempotency record');
+          return { executed: false, order: res, reason: 'Duplicate idempotency key in DB' };
+        }
+      } catch (err) {
+        this.logger.warn({ err, idempotencyKey }, 'Failed checking DB idempotency');
+      }
     }
 
     if (optionPrice === undefined || !Number.isFinite(optionPrice) || optionPrice <= 0) {
@@ -184,6 +300,7 @@ export class LiveTradingEngine {
       status: raw?.status ?? 'OPEN',
     };
     this.idempotencyStore.set(idempotencyKey, orderRes);
+    this.idempotencyStore.set(fillUuid, orderRes);
 
     if (isEntry) {
       this.positions.set(symbol, {
@@ -199,12 +316,71 @@ export class LiveTradingEngine {
         idempotencyKey,
         orderId,
       });
+
+      if (this.db) {
+        try {
+          const posSide: 'LONG' | 'SHORT' = side === 'BUY' ? 'LONG' : 'SHORT';
+          await this.db.insert(liveFills).values({
+            userId,
+            growwOrderId: orderId,
+            idempotencyKey: fillUuid,
+            symbol: (signal.metadata?.['underlyingSymbol'] as string) || symbol,
+            optionSymbol: symbol,
+            side,
+            orderType: 'LIMIT',
+            quantity: orderQuantity,
+            limitPrice: String(limitPrice),
+            status: 'OPEN',
+            placedAt: new Date(),
+            updatedAt: new Date(),
+          });
+
+          await this.db.insert(livePositions).values({
+            userId,
+            optionSymbol: symbol,
+            side: posSide,
+            quantity: orderQuantity,
+            avgEntryPrice: String(optionPrice),
+            currentPrice: String(optionPrice),
+            unrealizedPnl: '0',
+            realizedPnl: '0',
+            openedAt: new Date(),
+          });
+        } catch (err) {
+          this.logger.error({ err, orderId, symbol }, 'Failed to persist live entry order/position in PostgreSQL');
+        }
+      }
     } else {
-      const pos = this.positions.get(symbol);
-      if (pos) {
-        pos.status = 'CLOSING';
-        pos.closeOrderId = orderId;
-        pos.closeFilledQuantity = 0;
+      const existingPos = this.positions.get(symbol);
+      if (existingPos) {
+        existingPos.status = 'CLOSING';
+        existingPos.closeOrderId = orderId;
+        existingPos.closeFilledQuantity = 0;
+      }
+
+      if (this.db) {
+        try {
+          await this.db.insert(liveFills).values({
+            userId,
+            growwOrderId: orderId,
+            idempotencyKey: fillUuid,
+            symbol: (signal.metadata?.['underlyingSymbol'] as string) || symbol,
+            optionSymbol: symbol,
+            side,
+            orderType: 'LIMIT',
+            quantity: orderQuantity,
+            limitPrice: String(limitPrice),
+            status: 'OPEN',
+            placedAt: new Date(),
+            updatedAt: new Date(),
+          });
+
+          await this.db.update(livePositions)
+            .set({ currentPrice: String(limitPrice) })
+            .where(and(eq(livePositions.userId, userId), eq(livePositions.optionSymbol, symbol), isNull(livePositions.closedAt)));
+        } catch (err) {
+          this.logger.error({ err, orderId, symbol }, 'Failed to persist live exit order in PostgreSQL');
+        }
       }
     }
 
@@ -213,7 +389,7 @@ export class LiveTradingEngine {
   }
 
   /**
-   * Track partial & full fills from Groww WebSocket order updates (S6-005).
+   * Track partial & full fills from Groww WebSocket order updates and persist to PostgreSQL (S6-005, S19-009).
    */
   handleOrderUpdate(update: OrderFillUpdate): LivePositionState | undefined {
     for (const pos of this.positions.values()) {
@@ -232,6 +408,41 @@ export class LiveTradingEngine {
         } else {
           pos.status = 'CLOSING';
         }
+
+        if (this.db) {
+          void (async () => {
+            try {
+              await this.db.update(liveFills)
+                .set({
+                  status: update.status,
+                  filledQuantity: update.filledQuantity,
+                  avgFillPrice: String(update.avgFillPrice),
+                  updatedAt: new Date(),
+                  completedAt: update.status === 'COMPLETE' ? new Date() : null,
+                })
+                .where(eq(liveFills.growwOrderId, update.orderId));
+
+              if (pos.status === 'CLOSED') {
+                const pnl = pos.side === 'BUY'
+                  ? (update.avgFillPrice - pos.avgEntryPrice) * pos.filledQuantity
+                  : (pos.avgEntryPrice - update.avgFillPrice) * pos.filledQuantity;
+                this.dailyRealizedPnl += pnl;
+
+                await this.db.update(livePositions)
+                  .set({
+                    closedAt: new Date(),
+                    closedReason: 'TARGET_OR_SL',
+                    currentPrice: String(update.avgFillPrice),
+                    realizedPnl: String(pnl.toFixed(2)),
+                  })
+                  .where(and(eq(livePositions.userId, pos.userId), eq(livePositions.optionSymbol, pos.optionSymbol), isNull(livePositions.closedAt)));
+              }
+            } catch (err) {
+              this.logger.error({ err, orderId: update.orderId }, 'Failed persisting close order fill update in PostgreSQL');
+            }
+          })();
+        }
+
         this.logger.info({ orderId: update.orderId, closeFilledQuantity: pos.closeFilledQuantity, status: pos.status }, 'Processed live close-order update');
         return pos;
       }
@@ -249,6 +460,35 @@ export class LiveTradingEngine {
         } else if (update.status === 'REJECTED' || update.status === 'CANCELLED') {
           pos.status = pos.filledQuantity > 0 ? 'OPEN' : 'CLOSED';
         }
+
+        if (this.db) {
+          void (async () => {
+            try {
+              await this.db.update(liveFills)
+                .set({
+                  status: update.status,
+                  filledQuantity: update.filledQuantity,
+                  avgFillPrice: String(update.avgFillPrice),
+                  updatedAt: new Date(),
+                  completedAt: update.status === 'COMPLETE' ? new Date() : null,
+                })
+                .where(eq(liveFills.growwOrderId, update.orderId));
+
+              await this.db.update(livePositions)
+                .set({
+                  quantity: pos.filledQuantity,
+                  avgEntryPrice: String(pos.avgEntryPrice),
+                  currentPrice: String(pos.currentPrice),
+                  closedAt: pos.status === 'CLOSED' ? new Date() : null,
+                  closedReason: pos.status === 'CLOSED' ? 'REJECTED_OR_CANCELLED' : null,
+                })
+                .where(and(eq(livePositions.userId, pos.userId), eq(livePositions.optionSymbol, pos.optionSymbol), isNull(livePositions.closedAt)));
+            } catch (err) {
+              this.logger.error({ err, orderId: update.orderId }, 'Failed persisting entry order fill update in PostgreSQL');
+            }
+          })();
+        }
+
         this.logger.info(
           {
             orderId: update.orderId,
@@ -265,7 +505,7 @@ export class LiveTradingEngine {
   }
 
   /**
-   * Submit a protected limit square-off and wait for broker fill updates before
+   * Submit a protected limit square-off, persist exit orders, and wait for broker fill updates before
    * marking the position closed.
    */
   async squareOffAll(reason = '15:00 IST unconditional square-off'): Promise<number> {
@@ -290,10 +530,33 @@ export class LiveTradingEngine {
         validity: 'DAY',
       })) as { orderId?: string; id?: string } | undefined;
 
-      pos.closeOrderId = raw?.orderId ?? raw?.id;
+      const orderId = raw?.orderId ?? raw?.id;
+      pos.closeOrderId = orderId;
       pos.closeFilledQuantity = 0;
       pos.status = 'CLOSING';
       requestedCount++;
+
+      if (this.db && orderId) {
+        try {
+          const sqOffIdempotency = stringToUuid(`sqoff-${pos.id}-${Date.now()}`);
+          await this.db.insert(liveFills).values({
+            userId: pos.userId,
+            growwOrderId: orderId,
+            idempotencyKey: sqOffIdempotency,
+            symbol: pos.optionSymbol,
+            optionSymbol: pos.optionSymbol,
+            side: closeSide,
+            orderType: 'LIMIT',
+            quantity: qty,
+            limitPrice: String(limitPrice),
+            status: 'OPEN',
+            placedAt: new Date(),
+            updatedAt: new Date(),
+          });
+        } catch (err) {
+          this.logger.error({ err, orderId }, 'Failed to persist square-off fill record in PostgreSQL');
+        }
+      }
     }
 
     if (requestedCount > 0) {
