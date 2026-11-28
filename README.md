@@ -28,6 +28,8 @@ groww-ai-trading-monolith/
 - [Strategy Specification](docs/strategy-docs-v2.md) — 9/21 EMA crossover options strategy specification
 - [Project Plan](docs/project-plan.md) — Multi-sprint roadmap and deliverables
 - [Sprint 19 Hardening](docs/progress/sprints/sprint-19.md) — Live trading safety, Operator 2FA & durable state
+- [Gaps Analysis](docs/gaps.md) — Full audit of all known gaps (Critical / Important / Nice-to-have)
+- [Implementation Plan](docs/implementation-plan.md) — 3-phase plan to close all gaps (Sprints 20–24+)
 
 ## Quick Start
 
