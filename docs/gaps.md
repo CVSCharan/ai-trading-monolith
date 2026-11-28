@@ -511,7 +511,7 @@ Industry minimum for HMAC-SHA256 JWT signing key is 32 chars (256 bits). The pla
 | GAP-15 | Security | 🟡 Important | Low | ⏳ Open | 2FA brute-force window |
 | GAP-16 | Strategy | 🟢 Nice-to-have | High | ⏳ Open | Suboptimal sizing |
 | GAP-17 | Strategy | 🟢 Nice-to-have | High | ⏳ Open | Overfitting risk |
-| GAP-18 | Documentation | 🟢 Nice-to-have | Low | ⏳ Open | Missing ADR context |
+| GAP-18 | Documentation | 🟢 Nice-to-have | Low | ✅ Fixed (`docs/decisions.md`) | Missing ADR context |
 | GAP-19 | Security | 🟢 Nice-to-have | Medium | ✅ Fixed (Merged into GAP-25) | Unauthenticated WS messages |
 | GAP-20 | Data Quality | 🟢 Nice-to-have | Low | ⏳ Open | Poisoned EMA from bad ticks |
 | GAP-21 | Documentation | 🟢 Nice-to-have | Medium | ⏳ Open | Stale architecture diagram |

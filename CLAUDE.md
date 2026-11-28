@@ -42,6 +42,9 @@
 | `docs/strategy-docs-v2.md` | Authoritative (with open issues noted) |
 | `docs/phase1-spec.md` | Authoritative for Phase 1 |
 | `docs/decisions.md` | Authoritative for architectural decisions |
+| `docs/gaps.md` | Authoritative gaps register (`GAP-01`–`GAP-33`) |
+| `docs/audit-verdict.md` | Authoritative final audit scorecard & status |
+| `docs/trader-platform-roadmap.md` | Authoritative trader ecosystem roadmap |
 
 ### Git Workflow
 - Single repo, conventional commits
