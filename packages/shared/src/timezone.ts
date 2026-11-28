@@ -3,27 +3,32 @@
 // ============================================
 
 const IST_TIMEZONE = 'Asia/Kolkata';
+const IST_OFFSET_MS = 330 * 60_000;
+
+function toShiftedIST(date: Date): Date {
+  return new Date(date.getTime() + IST_OFFSET_MS);
+}
 
 /**
  * Get current time in IST
  */
 export function nowIST(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  return new Date(new Date().toLocaleString('en-US', { timeZone: IST_TIMEZONE }));
 }
 
 /**
  * Convert any date to IST (treats input as local time, converts to IST)
  */
 export function toIST(date: Date): Date {
-  return new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  return new Date(date.toLocaleString('en-US', { timeZone: IST_TIMEZONE }));
 }
 
 /**
- * Create a date representing the given IST time
- * Returns a Date object whose internal time is the UTC equivalent of the IST time
+ * Create a date representing the given IST time.
+ * Returns a Date object whose internal time is the exact UTC equivalent of the IST wall-clock time.
  *
- * Example: createISTDate(2024, 0, 1, 9, 15)
- *   -> returns Date representing 2024-01-01T03:45:00.000Z (which is 09:15 IST)
+ * Example: createISTDate(2024, 0, 1, 9, 15) -> 2024-01-01T03:45:00.000Z (09:15 IST)
+ *          createISTDate(2024, 0, 2, 0, 15) -> 2024-01-01T18:45:00.000Z (00:15 IST)
  */
 export function createISTDate(
   year: number,
@@ -34,22 +39,7 @@ export function createISTDate(
   seconds: number = 0,
   ms: number = 0
 ): Date {
-  // Convert IST to UTC by subtracting 5.5 hours
-  const utcHour = hours - 5;
-  const utcMin = minutes - 30;
-  let finalHour = utcHour;
-  let finalMin = utcMin;
-
-  if (finalMin < 0) {
-    finalMin += 60;
-    finalHour -= 1;
-  }
-  if (finalHour < 0) {
-    finalHour += 24;
-    // Note: day rollback not handled for simplicity
-  }
-
-  return new Date(Date.UTC(year, month, day, finalHour, finalMin, seconds, ms));
+  return new Date(Date.UTC(year, month, day, hours, minutes, seconds, ms) - IST_OFFSET_MS);
 }
 
 /**
@@ -77,29 +67,25 @@ export function getMinutesIST(date: Date): number {
 
 /**
  * Get minutes since midnight in IST for a date in UTC/local time
- * Converts to IST first
+ * Host-timezone-independent via fixed UTC+05:30 offset.
  */
 export function getMinutesISTFromUTC(date: Date): number {
-  const ist = toIST(date);
-  return ist.getHours() * 60 + ist.getMinutes();
+  const shifted = toShiftedIST(date);
+  return shifted.getUTCHours() * 60 + shifted.getUTCMinutes();
 }
 
 /**
- * Get IST date string (YYYY-MM-DD)
+ * Get IST date string (YYYY-MM-DD), host-timezone-independent.
  */
 export function getISTDateString(date: Date): string {
-  const ist = toIST(date);
-  const isoString = ist.toISOString();
-  const parts = isoString.split('T');
-  return parts[0] ?? '';
+  return toShiftedIST(date).toISOString().slice(0, 10);
 }
 
 /**
- * Get IST time string (HH:mm)
+ * Get IST time string (HH:mm), host-timezone-independent.
  */
 export function getISTTimeString(date: Date): string {
-  const ist = toIST(date);
-  return ist.toTimeString().slice(0, 5);
+  return toShiftedIST(date).toISOString().slice(11, 16);
 }
 
 /**
@@ -188,12 +174,12 @@ export function getAlignedBarTimeIST(
   timestamp: Date,
   timeframeMinutes: number
 ): Date {
-  const ist = toIST(timestamp);
-  const totalMinutes = getMinutesIST(ist) - (9 * 60 + 15);
+  const shifted = toShiftedIST(timestamp);
+  const totalMinutes = shifted.getUTCHours() * 60 + shifted.getUTCMinutes() - (9 * 60 + 15);
 
   if (totalMinutes < 0) {
     return createISTDate(
-      ist.getFullYear(), ist.getMonth(), ist.getDate(),
+      shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(),
       9, 15
     );
   }
@@ -204,7 +190,7 @@ export function getAlignedBarTimeIST(
   const minute = (9 * 60 + 15 + alignedMinutes) % 60;
 
   return createISTDate(
-    ist.getFullYear(), ist.getMonth(), ist.getDate(),
+    shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(),
     hour, minute
   );
 }
@@ -253,8 +239,7 @@ export function formatMinutesToTime(minutes: number): string {
  * Note: Holiday list should be fetched from NSE calendar
  */
 export function isTradingDay(date: Date): boolean {
-  const ist = toIST(date);
-  const day = ist.getDay();
+  const day = toShiftedIST(date).getUTCDay();
   return day >= 1 && day <= 5;
 }
 
@@ -262,9 +247,9 @@ export function isTradingDay(date: Date): boolean {
  * Get market open time for a given date
  */
 export function getMarketOpen(date: Date): Date {
-  const ist = toIST(date);
+  const shifted = toShiftedIST(date);
   return createISTDate(
-    ist.getFullYear(), ist.getMonth(), ist.getDate(),
+    shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(),
     9, 15
   );
 }
@@ -273,9 +258,9 @@ export function getMarketOpen(date: Date): Date {
  * Get market close time for a given date
  */
 export function getMarketClose(date: Date): Date {
-  const ist = toIST(date);
+  const shifted = toShiftedIST(date);
   return createISTDate(
-    ist.getFullYear(), ist.getMonth(), ist.getDate(),
+    shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(),
     15, 30
   );
 }

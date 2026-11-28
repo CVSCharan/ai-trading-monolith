@@ -630,6 +630,84 @@ export type NewEngineHealth = typeof engineHealth.$inferInsert;
 export type ReconciliationState = typeof reconciliationState.$inferSelect;
 export type NewReconciliationState = typeof reconciliationState.$inferInsert;
 
+// ============================================
+// Track 2: Market News & AI Decision Briefs
+// ============================================
+
+export const marketNews = pgTable('market_news', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  symbol: varchar('symbol', { length: 50 }),
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  source: varchar('source', { length: 100 }).notNull(),
+  url: text('url').notNull().unique(),
+  publishedAt: timestamp('published_at', { withTimezone: true }).notNull(),
+  sentiment: varchar('sentiment', { length: 20 }).notNull().default('NEUTRAL'),
+  impactLevel: varchar('impact_level', { length: 20 }).notNull().default('MEDIUM'),
+  eventType: varchar('event_type', { length: 30 }).notNull().default('GENERAL'),
+  aiRationale: text('ai_rationale').notNull().default(''),
+  suggestedRegime: varchar('suggested_regime', { length: 50 }).notNull().default('TREND_FOLLOWING'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  symbolPubIdx: index('market_news_symbol_pub_idx').on(table.symbol, table.publishedAt),
+  pubIdx: index('market_news_pub_idx').on(table.publishedAt),
+}));
+
+export const aiMarketBriefs = pgTable('ai_market_briefs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).references(() => user.id, { onDelete: 'cascade' }),
+  briefType: varchar('brief_type', { length: 20 }).notNull().default('INTRADAY'),
+  istDate: date('ist_date').notNull(),
+  headline: text('headline').notNull(),
+  summaryMarkdown: text('summary_markdown').notNull(),
+  marketRegime: varchar('market_regime', { length: 30 }).notNull().default('TRENDING'),
+  watchlistHighlights: jsonb('watchlist_highlights').notNull().default('[]'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userDateIdx: index('ai_market_briefs_user_date_idx').on(table.userId, table.istDate),
+}));
+
+// ============================================
+// Track 3: Zero-to-Trader Academy Progress
+// ============================================
+
+export const academyProgress = pgTable('academy_progress', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => user.id, { onDelete: 'cascade' }),
+  moduleId: varchar('module_id', { length: 50 }).notNull(),
+  lessonId: varchar('lesson_id', { length: 50 }).notNull(),
+  quizScore: integer('quiz_score').default(0),
+  quizAttempts: integer('quiz_attempts').default(0),
+  completedAt: timestamp('completed_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userLessonUid: uniqueIndex('academy_progress_user_lesson_uidx').on(table.userId, table.moduleId, table.lessonId),
+}));
+
+// ============================================
+// Track 4: Trade Journal Entries
+// ============================================
+
+export const tradeJournalEntries = pgTable('trade_journal_entries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => user.id, { onDelete: 'cascade' }),
+  tradeId: varchar('trade_id', { length: 100 }).notNull(),
+  tradeSource: varchar('trade_source', { length: 20 }).notNull().default('BACKTEST'),
+  setupTag: varchar('setup_tag', { length: 50 }).notNull().default('9_21_EMA'),
+  emotionTag: varchar('emotion_tag', { length: 30 }).notNull().default('CALM'),
+  followedRules: boolean('followed_rules').notNull().default(true),
+  rating: integer('rating').notNull().default(4),
+  notes: text('notes').notNull().default(''),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userTradeUid: uniqueIndex('trade_journal_user_trade_uidx').on(table.userId, table.tradeId),
+}));
+
+export type MarketNewsRow = typeof marketNews.$inferSelect;
+export type AiMarketBriefRow = typeof aiMarketBriefs.$inferSelect;
+export type AcademyProgressRow = typeof academyProgress.$inferSelect;
+export type TradeJournalEntryRow = typeof tradeJournalEntries.$inferSelect;
+
 // Import user table from Better Auth (it creates its own)
 import { user, session, account, verification, passkey } from './better-auth-schema';
 export { user, session, account, verification, passkey };

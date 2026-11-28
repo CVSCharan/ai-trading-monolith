@@ -28,6 +28,8 @@ export function StrategyBuilderPage() {
   const [executionMode, setExecutionMode] = useState<'DEEP_ITM_BUY' | 'ATM_BUY' | 'ATM_SELL'>('DEEP_ITM_BUY');
   const [entryStartTime, setEntryStartTime] = useState('09:30');
   const [entryEndTime, setEntryEndTime] = useState('11:30');
+  const [strategyTemplate, setStrategyTemplate] = useState<'EMA_9_21' | 'ORB_BREAKOUT' | 'VWAP_PULLBACK' | 'RSI_MEAN_REVERSION'>('EMA_9_21');
+  const [assetClass, setAssetClass] = useState<'INDEX_OPTIONS' | 'EQUITY_CASH'>('INDEX_OPTIONS');
   const [lots, setLots] = useState(1);
 
   const { data, error, refetch } = useQuery<{ strategies: StrategyRow[] }>({
@@ -36,8 +38,8 @@ export function StrategyBuilderPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/strategies', {
+    mutationFn: () =>
+      fetchJson('/api/strategies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -49,11 +51,18 @@ export function StrategyBuilderPage() {
           entryStartTime,
           entryEndTime,
           lots,
+          riskParams: {
+            maxDailyLossPct: 2,
+            maxPositions: 3,
+            maxPositionsPerStrategy: 1,
+            perTradeRiskPct: 1,
+            blockedPeriods: ['09:15-09:30', '15:15-15:30'],
+            shortOptionStopLossPct: 100,
+            strategyTemplate,
+            assetClass,
+          },
         }),
-      });
-      if (!res.ok) throw new Error('Failed to create strategy');
-      return res.json();
-    },
+      }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['strategies'] }),
   });
 
@@ -118,7 +127,33 @@ export function StrategyBuilderPage() {
           </label>
 
           <label className="text-xs text-slate-400">
-            Lots
+            Strategy Template
+            <Select
+              value={strategyTemplate}
+              onChange={(e) => setStrategyTemplate(e.target.value as 'EMA_9_21' | 'ORB_BREAKOUT' | 'VWAP_PULLBACK' | 'RSI_MEAN_REVERSION')}
+              className="mt-1"
+            >
+              <option value="EMA_9_21">9/21 EMA Crossover</option>
+              <option value="ORB_BREAKOUT">Opening Range Breakout (ORB)</option>
+              <option value="VWAP_PULLBACK">VWAP Pullback</option>
+              <option value="RSI_MEAN_REVERSION">RSI Mean Reversion</option>
+            </Select>
+          </label>
+
+          <label className="text-xs text-slate-400">
+            Asset Class
+            <Select
+              value={assetClass}
+              onChange={(e) => setAssetClass(e.target.value as 'INDEX_OPTIONS' | 'EQUITY_CASH')}
+              className="mt-1"
+            >
+              <option value="INDEX_OPTIONS">Index Options (NFO)</option>
+              <option value="EQUITY_CASH">Cash Equity (NSE Stocks)</option>
+            </Select>
+          </label>
+
+          <label className="text-xs text-slate-400">
+            Lots / Qty Multiplier
             <Input
               type="number"
               min={1}
@@ -163,7 +198,7 @@ export function StrategyBuilderPage() {
                       id={`strategy-switch-${s.id}`}
                       checked={s.isActive}
                       onCheckedChange={async (checked) => {
-                        await fetch(`/api/strategies/${s.id}`, {
+                        await fetchJson(`/api/strategies/${s.id}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
                           credentials: 'include',
@@ -183,7 +218,7 @@ export function StrategyBuilderPage() {
                     variant="outline"
                     className="border-sky-500/40 text-sky-300 hover:bg-sky-500/10"
                     onClick={async () => {
-                      await fetch('/api/paper/start', {
+                      await fetchJson('/api/paper/start', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
@@ -198,7 +233,7 @@ export function StrategyBuilderPage() {
                     size="sm"
                     variant="secondary"
                     onClick={async () => {
-                      await fetch(`/api/strategies/${s.id}/clone`, {
+                      await fetchJson(`/api/strategies/${s.id}/clone`, {
                         method: 'POST',
                         credentials: 'include',
                       });
@@ -212,7 +247,7 @@ export function StrategyBuilderPage() {
                     size="sm"
                     variant="danger"
                     onClick={async () => {
-                      await fetch(`/api/strategies/${s.id}`, {
+                      await fetchJson(`/api/strategies/${s.id}`, {
                         method: 'DELETE',
                         credentials: 'include',
                       });

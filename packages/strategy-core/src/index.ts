@@ -12,6 +12,7 @@ export * from './indicators/crossover';
 
 // Signals
 export * from './signals/generator';
+export * from './signals/multi-strategy';
 
 // Execution
 export * from './execution/instrument-resolver';

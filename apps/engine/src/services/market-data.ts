@@ -7,6 +7,13 @@ import { UpstoxMarketDataFeed, type UpstoxFeedTick } from './upstox-ws';
 
 export type TickListener = (tick: UpstoxFeedTick) => void;
 
+export function resolveAggregatorSymbol(instrumentKey: string): string {
+  if (instrumentKey === 'NSE_INDEX|Nifty 50') return 'NIFTY';
+  if (instrumentKey === 'NSE_INDEX|Nifty Bank') return 'BANKNIFTY';
+  const parts = instrumentKey.split('|');
+  return parts[1]?.trim() || instrumentKey;
+}
+
 export class MarketDataService {
   private logger: pino.Logger;
   private upstoxFeed: UpstoxMarketDataFeed;
@@ -24,7 +31,7 @@ export class MarketDataService {
     this.router = createBrokerRouter(growwClient);
     this.upstoxFeed = new UpstoxMarketDataFeed(logger, (tick) => {
       this.latestPrices.set(tick.instrumentKey, tick.ltp);
-      const sym = tick.instrumentKey.includes('Bank') ? 'BANKNIFTY' : 'NIFTY';
+      const sym = resolveAggregatorSymbol(tick.instrumentKey);
       this.barAggregator.ingestTick(sym, tick.ltp, new Date(tick.timestamp));
       for (const listener of this.listeners) {
         try {
@@ -79,10 +86,12 @@ export class MarketDataService {
       },
       'MarketDataService connecting',
     );
+    this.barAggregator.startAutoFlush();
     await this.upstoxFeed.connect(instrumentKeys);
   }
 
   async disconnect(): Promise<void> {
+    this.barAggregator.stopAutoFlush();
     this.upstoxFeed.disconnect();
     this.logger.info('MarketDataService disconnected');
   }

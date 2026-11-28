@@ -79,4 +79,42 @@ describe('Instrument Resolver (S2-003)', () => {
     expect(indexed.optionSymbol).toBe('NIFTY24JAN23750CE');
     expect(indexed.strike).toBe(23750);
   });
+
+  test('GAP-23: resolves BANKNIFTY strike step (100) and option contracts when underlyingSymbol=BANKNIFTY', () => {
+    const bankNiftyInstruments: Instrument[] = [
+      {
+        id: 100,
+        symbol: 'BANKNIFTY',
+        instrumentType: 'INDEX',
+        lotSize: 15,
+        tickSize: 0.05,
+        strikeStep: 100,
+        validFrom: new Date('2024-01-01'),
+        validTo: null,
+        growwToken: 'BANKNIFTY',
+        isActive: true,
+      },
+      {
+        id: 101,
+        symbol: 'BANKNIFTY',
+        instrumentType: 'OPT',
+        underlyingSymbol: 'BANKNIFTY',
+        strikePrice: 48000,
+        optionType: 'CE',
+        expiryDate: new Date('2024-01-25'),
+        expiryType: 'WEEKLY',
+        lotSize: 15,
+        tickSize: 0.05,
+        strikeStep: 100,
+        validFrom: new Date('2024-01-01'),
+        validTo: null,
+        growwToken: 'BANKNIFTY24JAN48000CE',
+        isActive: true,
+      },
+    ];
+    const res = selectStrike(48040, 'BUY', 'ATM_BUY', 5, bankNiftyInstruments, signalTime, 'WEEKLY', 2, undefined, 'BANKNIFTY');
+    expect(res.strike).toBe(48000);
+    expect(res.optionType).toBe('CE');
+    expect(res.optionSymbol).toBe('BANKNIFTY24JAN48000CE');
+  });
 });

@@ -12,6 +12,8 @@ export interface LiveRiskConfig {
   maxLotsPerOrder: number;
   lotSize: number;
   squareOffMinutesIST?: number; // default 15:00 = 900
+  shortOptionStopLossPct?: number; // default 100 (% rise in short option premium)
+  longOptionStopLossPct?: number; // optional (% drop in long option premium)
 }
 
 export interface LivePositionState {
@@ -571,58 +573,114 @@ export class LiveTradingEngine {
   }
 
   /**
+   * Submit a protected limit close order for a single open position and record it in liveFills.
+   */
+  private async submitProtectedClose(
+    pos: LivePositionState,
+    ltp: number,
+    reason: string
+  ): Promise<boolean> {
+    if (pos.status === 'CLOSED' || pos.status === 'CLOSING' || pos.filledQuantity <= 0) return false;
+    const qty = pos.filledQuantity - (pos.totalClosedQuantity ?? 0);
+    if (qty <= 0) return false;
+
+    const closeSide: 'BUY' | 'SELL' = pos.side === 'BUY' ? 'SELL' : 'BUY';
+    const refPrice = ltp > 0 ? ltp : pos.currentPrice || pos.avgEntryPrice;
+    const buffer = closeSide === 'SELL' ? 0.98 : 1.02;
+    const limitPrice = Number((refPrice * buffer).toFixed(2));
+
+    const raw = (await this.growwClient.placeOrder({
+      symbol: pos.optionSymbol,
+      exchange: 'NFO',
+      quantity: qty,
+      side: closeSide,
+      orderType: 'LIMIT',
+      price: limitPrice,
+      product: 'MIS',
+      validity: 'DAY',
+    })) as { orderId?: string; id?: string } | undefined;
+
+    const orderId = raw?.orderId ?? raw?.id;
+    pos.closeOrderId = orderId;
+    pos.closeFilledQuantity = 0;
+    pos.status = 'CLOSING';
+
+    if (this.db && orderId) {
+      try {
+        const sqOffIdempotency = stringToUuid(`close-${pos.id}-${Date.now()}`);
+        await this.db.insert(liveFills).values({
+          userId: pos.userId,
+          growwOrderId: orderId,
+          idempotencyKey: sqOffIdempotency,
+          symbol: pos.optionSymbol,
+          optionSymbol: pos.optionSymbol,
+          side: closeSide,
+          orderType: 'LIMIT',
+          quantity: qty,
+          limitPrice: String(limitPrice),
+          status: 'OPEN',
+          placedAt: new Date(),
+          updatedAt: new Date(),
+        });
+      } catch (err) {
+        this.logger.error({ err, orderId, reason }, 'Failed to persist close fill record in PostgreSQL');
+      }
+    }
+
+    this.logger.warn({ symbol: pos.optionSymbol, closeSide, qty, limitPrice, reason }, 'Submitted protected close order');
+    return true;
+  }
+
+  /**
+   * Enforce per-trade option premium stop-loss on incoming option ticks (GAP-05).
+   */
+  async onOptionTick(
+    optionSymbol: string,
+    ltp: number,
+    risk?: Pick<LiveRiskConfig, 'shortOptionStopLossPct' | 'longOptionStopLossPct'>
+  ): Promise<boolean> {
+    if (!Number.isFinite(ltp) || ltp <= 0) return false;
+    const pos = this.positions.get(optionSymbol);
+    if (!pos || pos.status !== 'OPEN' || pos.filledQuantity <= 0 || pos.avgEntryPrice <= 0) {
+      return false;
+    }
+
+    pos.currentPrice = ltp;
+
+    if (pos.side === 'SELL') {
+      const stopPct = risk?.shortOptionStopLossPct ?? 100;
+      const lossPct = ((ltp - pos.avgEntryPrice) / pos.avgEntryPrice) * 100;
+      if (lossPct >= stopPct) {
+        return this.submitProtectedClose(
+          pos,
+          ltp,
+          `SHORT_OPTION_SL (${lossPct.toFixed(1)}% >= ${stopPct}%)`
+        );
+      }
+    } else if (pos.side === 'BUY' && risk?.longOptionStopLossPct !== undefined) {
+      const stopPct = risk.longOptionStopLossPct;
+      const lossPct = ((pos.avgEntryPrice - ltp) / pos.avgEntryPrice) * 100;
+      if (lossPct >= stopPct) {
+        return this.submitProtectedClose(
+          pos,
+          ltp,
+          `LONG_OPTION_SL (${lossPct.toFixed(1)}% >= ${stopPct}%)`
+        );
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Submit a protected limit square-off, persist exit orders, and wait for broker fill updates before
    * marking the position closed.
    */
   async squareOffAll(reason = '15:00 IST unconditional square-off'): Promise<number> {
     let requestedCount = 0;
     for (const pos of this.positions.values()) {
-      if (pos.status === 'CLOSED' || pos.status === 'CLOSING' || pos.filledQuantity <= 0) continue;
-      const qty = pos.filledQuantity - (pos.totalClosedQuantity ?? 0);
-      if (qty <= 0) continue;
-      const closeSide: 'BUY' | 'SELL' = pos.side === 'BUY' ? 'SELL' : 'BUY';
-      const ltp = pos.currentPrice || pos.avgEntryPrice;
-      const buffer = closeSide === 'SELL' ? 0.98 : 1.02;
-      const limitPrice = Number((ltp * buffer).toFixed(2));
-
-      const raw = (await this.growwClient.placeOrder({
-        symbol: pos.optionSymbol,
-        exchange: 'NFO',
-        quantity: qty,
-        side: closeSide,
-        orderType: 'LIMIT',
-        price: limitPrice,
-        product: 'MIS',
-        validity: 'DAY',
-      })) as { orderId?: string; id?: string } | undefined;
-
-      const orderId = raw?.orderId ?? raw?.id;
-      pos.closeOrderId = orderId;
-      pos.closeFilledQuantity = 0;
-      pos.status = 'CLOSING';
-      requestedCount++;
-
-      if (this.db && orderId) {
-        try {
-          const sqOffIdempotency = stringToUuid(`sqoff-${pos.id}-${Date.now()}`);
-          await this.db.insert(liveFills).values({
-            userId: pos.userId,
-            growwOrderId: orderId,
-            idempotencyKey: sqOffIdempotency,
-            symbol: pos.optionSymbol,
-            optionSymbol: pos.optionSymbol,
-            side: closeSide,
-            orderType: 'LIMIT',
-            quantity: qty,
-            limitPrice: String(limitPrice),
-            status: 'OPEN',
-            placedAt: new Date(),
-            updatedAt: new Date(),
-          });
-        } catch (err) {
-          this.logger.error({ err, orderId }, 'Failed to persist square-off fill record in PostgreSQL');
-        }
-      }
+      const closed = await this.submitProtectedClose(pos, pos.currentPrice || pos.avgEntryPrice, reason);
+      if (closed) requestedCount++;
     }
 
     if (requestedCount > 0) {

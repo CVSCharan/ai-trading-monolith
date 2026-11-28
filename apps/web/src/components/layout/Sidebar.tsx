@@ -7,6 +7,7 @@ import {
   LineChart,
   Lock,
   Menu,
+  Newspaper,
   ScrollText,
   Settings,
   ShieldAlert,
@@ -30,6 +31,7 @@ export const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
     title: 'Desk',
     items: [
       { to: '/', label: 'Dashboard', icon: Activity, demoAllowed: true },
+      { to: '/pulse', label: 'Market Pulse & AI', icon: Newspaper, demoAllowed: true },
       { to: '/bot', label: 'Bot Control', icon: Bot, demoAllowed: true },
       { to: '/option-chain', label: 'Option Chain', icon: Layers, demoAllowed: true },
     ],

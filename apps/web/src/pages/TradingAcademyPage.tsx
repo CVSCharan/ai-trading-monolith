@@ -28,9 +28,10 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { ZeroToTraderCurriculum } from '../components/ZeroToTraderCurriculum';
 
 export function TradingAcademyPage() {
-  const [activeTab, setActiveTab] = useState('strategy');
+  const [activeTab, setActiveTab] = useState('curriculum');
 
   // Interactive Cross-Verification Calculator State
   const [calcIndex, setCalcIndex] = useState<'NIFTY' | 'BANKNIFTY'>('NIFTY');
@@ -118,7 +119,11 @@ export function TradingAcademyPage() {
 
       {/* Main Tabs Curriculum */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="w-full justify-start p-1 bg-slate-900/80 border-slate-800">
+        <TabsList className="w-full justify-start p-1 bg-slate-900/80 border-slate-800 flex-wrap">
+          <TabsTrigger value="curriculum" className="gap-2">
+            <BookOpen className="h-3.5 w-3.5 text-emerald-400" />
+            0. Zero-to-Trader Path
+          </TabsTrigger>
           <TabsTrigger value="strategy" className="gap-2">
             <Activity className="h-3.5 w-3.5 text-sky-400" />
             1. Strategy Mechanics
@@ -140,6 +145,10 @@ export function TradingAcademyPage() {
             5. Regulatory Invariants
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="curriculum" className="space-y-6">
+          <ZeroToTraderCurriculum />
+        </TabsContent>
 
         {/* =========================================================================
             MODULE 1: STRATEGY MECHANICS

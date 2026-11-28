@@ -49,14 +49,16 @@ export function selectStrike(
   signalTime: Date,  // Use signal time for expiry resolution
   expiryPreference: 'WEEKLY' | 'MONTHLY' = 'WEEKLY',
   avoidExpiryDays: number = 2,
-  instrumentIndex?: InstrumentIndex
+  instrumentIndex?: InstrumentIndex,
+  underlyingSymbol: string = 'NIFTY'
 ): { strike: number; optionType: OptionType; optionSymbol: string; expiryDate: Date } {
   // Find index instrument for strike step
   const indexInst = instruments.find(i =>
-    i.symbol === 'NIFTY' && i.instrumentType === 'INDEX' && i.isActive
+    i.symbol === underlyingSymbol && i.instrumentType === 'INDEX' && i.isActive
   );
 
-  const strikeStep = indexInst?.strikeStep || 50;
+  const defaultStep = underlyingSymbol === 'BANKNIFTY' ? 100 : 50;
+  const strikeStep = indexInst?.strikeStep || defaultStep;
 
   // ATM = nearest strike
   const atm = Math.round(spotPrice / strikeStep) * strikeStep;
@@ -96,7 +98,7 @@ export function selectStrike(
   // Find matching option instrument with expiry resolution
   const optionInst = findOptionInstrument(
     instruments,
-    'NIFTY',
+    underlyingSymbol,
     strike,
     optionType,
     expiryPreference,

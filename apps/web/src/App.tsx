@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 import { DashboardPage } from './pages/DashboardPage';
+import { MarketPulsePage } from './pages/MarketPulsePage';
 import { BotControlPage } from './pages/BotControlPage';
 import { OptionChainPage } from './pages/OptionChainPage';
 import { StrategyBuilderPage } from './pages/StrategyBuilderPage';
@@ -33,6 +34,7 @@ export function App() {
               <AppShell>
                 <Routes>
                   <Route path="/" element={<DashboardPage />} />
+                  <Route path="/pulse" element={<MarketPulsePage />} />
                   <Route path="/bot" element={<BotControlPage />} />
                   <Route path="/option-chain" element={<OptionChainPage />} />
                   <Route path="/strategy/builder" element={<StrategyBuilderPage />} />

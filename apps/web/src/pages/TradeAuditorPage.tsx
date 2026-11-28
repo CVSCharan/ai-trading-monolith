@@ -6,6 +6,7 @@ import { TradeCandlestickChart, type ChartCandle } from '../components/charts/Tr
 import { Button } from '../components/ui/button';
 import { Skeleton, SkeletonChart, SkeletonTable } from '../components/ui/skeleton';
 import { TradeContextPanel } from '../components/TradeContextPanel';
+import { TradeJournalCard } from '../components/TradeJournalCard';
 import { QueryErrorState } from '../components/ui/query-feedback';
 import { fetchJson } from '../lib/api';
 
@@ -117,31 +118,35 @@ export function TradeAuditorPage() {
       {error && !isLoading && <QueryErrorState error={error} onRetry={() => void refetch()} title="Trade details are unavailable" />}
 
       {trade && (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <TradeCandlestickChart
-              candles={chartRes?.candles ?? []}
-              entryTime={trade.entryTime}
-              exitTime={trade.exitTime}
-              side={trade.side}
+        <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <TradeCandlestickChart
+                candles={chartRes?.candles ?? []}
+                entryTime={trade.entryTime}
+                exitTime={trade.exitTime}
+                side={trade.side}
+              />
+            </div>
+
+            <TradeContextPanel
+              trade={{
+                id: trade.id,
+                symbol: trade.symbol,
+                optionSymbol: trade.optionSymbol,
+                side: trade.side,
+                quantity: trade.quantity,
+                entryPrice: trade.entryPrice,
+                exitPrice: trade.exitPrice,
+                grossPnl: trade.grossPnl,
+                totalCosts: trade.costs,
+                netPnl: trade.netPnl,
+                closedReason: trade.exitReason,
+              }}
             />
           </div>
 
-          <TradeContextPanel
-            trade={{
-              id: trade.id,
-              symbol: trade.symbol,
-              optionSymbol: trade.optionSymbol,
-              side: trade.side,
-              quantity: trade.quantity,
-              entryPrice: trade.entryPrice,
-              exitPrice: trade.exitPrice,
-              grossPnl: trade.grossPnl,
-              totalCosts: trade.costs,
-              netPnl: trade.netPnl,
-              closedReason: trade.exitReason,
-            }}
-          />
+          <TradeJournalCard tradeId={trade.id} tradeSource="BACKTEST" />
         </div>
       )}
     </div>

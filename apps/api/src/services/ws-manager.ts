@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 import { z } from 'zod';
+import { auth } from '../auth';
 import { pgClient } from '../db';
 import { logger } from '../logger';
 
@@ -10,6 +11,8 @@ const VALID_CHANNELS = new Set([
   'paper_updates',
   'live_updates',
 ]);
+
+const PRIVATE_CHANNELS = new Set(['paper_updates', 'live_updates']);
 
 const ClientMessageSchema = z.object({
   action: z.enum(['subscribe', 'unsubscribe']),
@@ -23,7 +26,12 @@ interface SubscribableSocket {
 class WebSocketManager {
   private channels = new Map<string, Set<SubscribableSocket>>();
   private clientChannels = new Map<SubscribableSocket, Set<string>>();
+  private clientUsers = new Map<SubscribableSocket, string>();
   private listening = false;
+
+  registerClient(ws: SubscribableSocket, userId: string): void {
+    this.clientUsers.set(ws, userId);
+  }
 
   subscribe(ws: SubscribableSocket, channel: string): void {
     if (!VALID_CHANNELS.has(channel)) return;
@@ -47,14 +55,30 @@ class WebSocketManager {
       }
       this.clientChannels.delete(ws);
     }
+    this.clientUsers.delete(ws);
   }
 
-  broadcast(channel: string, payload: unknown): void {
+  broadcast(channel: string, payload: unknown, targetUserId?: string): void {
     const subscribers = this.channels.get(channel);
     if (!subscribers || subscribers.size === 0) return;
 
+    const isPrivate = PRIVATE_CHANNELS.has(channel);
+    const resolvedUserId =
+      targetUserId ??
+      (payload && typeof payload === 'object' && 'userId' in payload && typeof (payload as { userId?: unknown }).userId === 'string'
+        ? (payload as { userId: string }).userId
+        : undefined);
+
+    if (isPrivate && !resolvedUserId) {
+      logger.warn({ channel }, 'Dropped private WS broadcast without userId');
+      return;
+    }
+
     const message = JSON.stringify({ channel, data: payload, timestamp: new Date().toISOString() });
     for (const ws of subscribers) {
+      if (isPrivate && this.clientUsers.get(ws) !== resolvedUserId) {
+        continue;
+      }
       try {
         ws.send(message);
       } catch (err) {
@@ -70,9 +94,9 @@ class WebSocketManager {
     try {
       await pgClient.listen('trading_events', (rawPayload) => {
         try {
-          const parsed = JSON.parse(rawPayload) as { channel?: string; data?: unknown };
+          const parsed = JSON.parse(rawPayload) as { channel?: string; data?: unknown; userId?: string };
           if (parsed.channel && VALID_CHANNELS.has(parsed.channel)) {
-            this.broadcast(parsed.channel, parsed.data);
+            this.broadcast(parsed.channel, parsed.data, parsed.userId);
           }
         } catch (err) {
           logger.warn({ err }, 'Invalid trading_events payload');
@@ -89,11 +113,41 @@ class WebSocketManager {
 export const wsManager = new WebSocketManager();
 
 export const wsPlugin = new Elysia({ name: 'ws-plugin' }).ws('/api/market/ws', {
-  open(ws) {
-    logger.debug({ id: ws.id }, 'WebSocket client connected');
+  async beforeHandle({ request, set }) {
+    try {
+      const session = await auth.api.getSession({ headers: request.headers });
+      if (!session?.user?.id) {
+        set.status = 401;
+        return { error: 'Unauthorized' };
+      }
+    } catch {
+      set.status = 401;
+      return { error: 'Unauthorized' };
+    }
+  },
+  async open(ws) {
+    try {
+      const req = (ws.data as { request?: Request } | undefined)?.request;
+      const session = req ? await auth.api.getSession({ headers: req.headers }) : null;
+      if (!session?.user?.id) {
+        ws.close(4001, 'Unauthorized');
+        return;
+      }
+      wsManager.registerClient(ws, session.user.id);
+      logger.debug({ id: ws.id, userId: session.user.id }, 'WebSocket client connected');
+    } catch {
+      ws.close(4001, 'Unauthorized');
+    }
   },
   message(ws, message) {
-    const raw = typeof message === 'string' ? JSON.parse(message) : message;
+    let raw: unknown;
+    try {
+      raw = typeof message === 'string' ? JSON.parse(message) : message;
+    } catch {
+      ws.send(JSON.stringify({ error: 'Invalid JSON message' }));
+      return;
+    }
+
     const parsed = ClientMessageSchema.safeParse(raw);
     if (!parsed.success) {
       ws.send(JSON.stringify({ error: 'Invalid subscription message' }));

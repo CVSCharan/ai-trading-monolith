@@ -131,7 +131,9 @@ export function generateSignals(
                 instruments,
                 barCloseTime,
                 config.expiryPreference,
-                config.avoidExpiryDays
+                config.avoidExpiryDays,
+                undefined,
+                config.underlyingSymbol
               );
 
               signals.push({
@@ -192,7 +194,9 @@ export function generateSignals(
           instruments,
           barCloseTime,
           config.expiryPreference,
-          config.avoidExpiryDays
+          config.avoidExpiryDays,
+          undefined,
+          config.underlyingSymbol
         );
 
         signals.push({
@@ -231,7 +235,9 @@ export function generateSignals(
         instruments,
         barCloseTime,
         config.expiryPreference,
-        config.avoidExpiryDays
+        config.avoidExpiryDays,
+        undefined,
+        config.underlyingSymbol
       );
 
       signals.push({
@@ -415,7 +421,9 @@ export class StreamingSignalGenerator {
                 this.instruments,
                 barCloseTime,
                 this.config.expiryPreference,
-                this.config.avoidExpiryDays
+                this.config.avoidExpiryDays,
+                undefined,
+                this.config.underlyingSymbol
               );
 
               signals.push({
@@ -479,7 +487,9 @@ export class StreamingSignalGenerator {
         this.instruments,
         barCloseTime,
         this.config.expiryPreference,
-        this.config.avoidExpiryDays
+        this.config.avoidExpiryDays,
+        undefined,
+        this.config.underlyingSymbol
       );
 
       signals.push({
