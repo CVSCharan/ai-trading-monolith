@@ -17,10 +17,69 @@ import {
 import { eq, and, inArray, isNull, desc, sql } from 'drizzle-orm';
 import { GrowwClient } from './groww-client';
 import {
+  MultiStrategyEvaluator,
   StreamingSignalGenerator,
+  type AssetClass,
+  type CandleResampled,
   type Instrument,
+  type Signal,
   type StrategyConfig,
+  type StrategyTemplateId,
 } from '@groww-trading/strategy-core';
+
+function createStrategyRunner(
+  strategy: StrategyConfig,
+  instruments: Instrument[],
+  runType: 'paper' | 'live'
+): { processBar(bar: CandleResampled, prevBar?: CandleResampled | null): Signal[] } {
+  const riskAny = strategy.risk as unknown as {
+    strategyTemplate?: StrategyTemplateId;
+    assetClass?: AssetClass;
+  };
+  const template: StrategyTemplateId = riskAny?.strategyTemplate ?? 'EMA_9_21';
+  const assetClass: AssetClass = riskAny?.assetClass ?? 'INDEX_OPTIONS';
+
+  if (template === 'EMA_9_21' && assetClass === 'INDEX_OPTIONS') {
+    return new StreamingSignalGenerator(strategy, instruments, runType);
+  }
+
+  const evaluator = new MultiStrategyEvaluator(
+    template === 'EMA_9_21' ? 'VWAP_PULLBACK' : template,
+    assetClass,
+    strategy.underlyingSymbol
+  );
+
+  return {
+    processBar(bar: CandleResampled): Signal[] {
+      const rawSignals = evaluator.processBar(bar);
+      return rawSignals.map((s) => ({
+        strategyId: strategy.id ?? '',
+        runType,
+        barTime: s.barTime,
+        signalType: s.signalType,
+        ema9: 0,
+        ema21: 0,
+        spotPrice: s.spotPrice,
+        selectedStrike: 0,
+        optionType: 'CE',
+        optionSymbol: s.symbol,
+        expiryDate: s.barTime,
+        entryWindowValid: true,
+        isReversal: false,
+        currentPosition: null,
+        metadata: {
+          isExit: s.action === 'EXIT',
+          exitReason: s.reason,
+          underlyingSymbol: strategy.underlyingSymbol,
+          lots: strategy.lots,
+          assetClass,
+          strategyTemplate: template,
+          canTrade: true,
+        },
+      }));
+    },
+  };
+}
 import { config } from '../config';
 
 export class CommandProcessor {
@@ -102,6 +161,12 @@ export class CommandProcessor {
   private async startPaper(userId: string, payload: any): Promise<any> {
     const { strategyIds, initialCapital = 1000000 } = payload;
 
+    // Deactivate prior active paper portfolios so PaperTradingEngine always selects the current one (GAP-28)
+    await this.db
+      .update(paperPortfolios)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(eq(paperPortfolios.userId, userId), eq(paperPortfolios.isActive, true)));
+
     // Create paper portfolio
     const [portfolio] = await this.db
       .insert(paperPortfolios)
@@ -115,22 +180,19 @@ export class CommandProcessor {
       })
       .returning();
 
-    // Initialize strategy generators for each strategy
+    // Initialize strategy runners for each strategy
     const generators = new Map();
     for (const strategyId of strategyIds) {
-      // Load strategy config
       const strategy = await this.loadStrategy(strategyId);
       if (!strategy) continue;
 
-      // Load instruments
       const instruments = await this.loadInstruments();
-
-      // Create generator
-      const generator = new StreamingSignalGenerator(strategy, instruments, 'paper');
+      const generator = createStrategyRunner(strategy, instruments, 'paper');
       generators.set(strategyId, { generator, strategy, instruments, position: null });
     }
 
-    this.activeSessions.set(userId, { paper: { portfolioId: portfolio.id, generators } });
+    const existing = this.activeSessions.get(userId) ?? {};
+    this.activeSessions.set(userId, { ...existing, paper: { portfolioId: portfolio.id, generators } });
 
     return { portfolioId: portfolio.id, strategies: strategyIds };
   }
@@ -189,13 +251,13 @@ export class CommandProcessor {
       await this.liveEngine.hydratePositionsFromDb(userId);
     }
 
-    // Initialize strategy generators for live trading
+    // Initialize strategy runners for live trading
     const generators = new Map();
     for (const strategyId of strategyIds) {
       const strategy = await this.loadStrategy(strategyId);
       if (!strategy) continue;
       const instruments = await this.loadInstruments();
-      const generator = new StreamingSignalGenerator(strategy, instruments, 'live');
+      const generator = createStrategyRunner(strategy, instruments, 'live');
       generators.set(strategyId, { generator, strategy, instruments, position: null });
     }
 

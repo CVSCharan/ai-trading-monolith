@@ -80,15 +80,12 @@ export function BotControlPage() {
     mutationFn: async () => {
       const strategyId = selectedStrategyId || strategiesData?.strategies?.[0]?.id;
       if (!strategyId) throw new Error('Create or select a strategy first.');
-      const res = await fetch('/api/paper/start', {
+      return fetchJson('/api/paper/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ strategyId }),
       });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to start paper bot');
-      return json;
     },
     onSuccess: () => {
       setFeedback('Paper trading bot command queued — engine will start on next poll.');
@@ -98,15 +95,11 @@ export function BotControlPage() {
   });
 
   const stopBotMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/paper/stop', {
+    mutationFn: () =>
+      fetchJson('/api/paper/stop', {
         method: 'POST',
         credentials: 'include',
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to stop paper bot');
-      return json;
-    },
+      }),
     onSuccess: () => {
       setFeedback('Stop command sent to paper trading bot.');
       void qc.invalidateQueries({ queryKey: ['engine-state'] });

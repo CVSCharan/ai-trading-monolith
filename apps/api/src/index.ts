@@ -14,6 +14,7 @@ import { authPlugin } from './middleware/auth-middleware';
 import { createRateLimitPlugin } from './middleware/rate-limit-middleware';
 import { wsManager, wsPlugin } from './services/ws-manager';
 import { startBacktestWorker, stopBacktestWorker } from './services/backtest-runner';
+import { startNewsScheduler, stopNewsScheduler } from './services/news-scheduler';
 import { userRoutes } from './routes/user';
 import { strategyRoutes } from './routes/strategy';
 import { backtestRoutes } from './routes/backtest';
@@ -108,11 +109,13 @@ if (process.env['SEED_ON_START'] === 'true') {
 }
 void wsManager.startPostgresBridge();
 startBacktestWorker();
+startNewsScheduler();
 
 // Graceful shutdown
 async function shutdown(signal: string) {
   logger.info({ signal }, 'Shutting down API server...');
   stopBacktestWorker();
+  stopNewsScheduler();
   app.stop();
   await pgClient.end();
   process.exit(0);

@@ -32,8 +32,8 @@ export function BacktestResultsPage() {
   const effectiveStrategyId = strategyId || strategiesData?.strategies?.[0]?.id || '';
 
   const runMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/backtest/run', {
+    mutationFn: () =>
+      fetchJson<{ runId: string }>('/api/backtest/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -43,24 +43,18 @@ export function BacktestResultsPage() {
           endDate,
           initialCapital: 1_000_000,
         }),
-      });
-      if (!res.ok) throw new Error('Failed to enqueue backtest');
-      return res.json() as Promise<{ runId: string }>;
-    },
+      }),
     onSuccess: (d) => setRunId(d.runId),
   });
 
   const promoteMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/paper/start', {
+    mutationFn: () =>
+      fetchJson('/api/paper/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ strategyId: effectiveStrategyId }),
-      });
-      if (!res.ok) throw new Error('Failed to launch paper bot');
-      return res.json();
-    },
+      }),
     onSuccess: () => navigate('/bot'),
   });
 

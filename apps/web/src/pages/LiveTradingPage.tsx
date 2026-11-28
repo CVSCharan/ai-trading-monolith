@@ -61,17 +61,13 @@ export function LiveTradingPage() {
   });
 
   const enableMutation = useMutation({
-    mutationFn: async (code: string) => {
-      const res = await fetch('/api/live/enable', {
+    mutationFn: (code: string) =>
+      fetchJson('/api/live/enable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ code }),
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to enable live trading');
-      return json;
-    },
+      }),
     onSuccess: () => {
       setShowEnableModal(false);
       setTotpCode('');
@@ -82,16 +78,13 @@ export function LiveTradingPage() {
   });
 
   const emergencyStopMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/live/emergency-stop', {
+    mutationFn: () =>
+      fetchJson('/api/live/emergency-stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ reason: 'Manual Emergency Stop from AI Trader UI' }),
-      });
-      if (!res.ok) throw new Error('Emergency stop failed');
-      return res.json();
-    },
+      }),
     onSuccess: () => {
       setConfirmStop(false);
       setFeedback('Emergency stop queued. Order cancellations and protected limit close orders are processing; verify broker positions are flat.');

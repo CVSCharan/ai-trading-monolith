@@ -43,7 +43,7 @@ export class PaperTradingEngine {
     const [portfolio] = await this.db
       .select()
       .from(paperPortfolios)
-      .where(eq(paperPortfolios.userId, userId))
+      .where(and(eq(paperPortfolios.userId, userId), eq(paperPortfolios.isActive, true)))
       .limit(1);
 
     if (!portfolio) {
@@ -75,7 +75,7 @@ export class PaperTradingEngine {
     const [portfolio] = await this.db
       .select()
       .from(paperPortfolios)
-      .where(eq(paperPortfolios.userId, userId))
+      .where(and(eq(paperPortfolios.userId, userId), eq(paperPortfolios.isActive, true)))
       .limit(1);
 
     if (!portfolio) return;
@@ -147,17 +147,17 @@ export class PaperTradingEngine {
     instruments: Instrument[],
     optionPriceLookup?: (symbol: string, spotPrice: number) => number
   ): Promise<void> {
-    const lotSize = getLotSize(
-      instruments,
-      'NIFTY',
-      'OPT',
-      sig.selectedStrike,
-      sig.optionType
-    );
-    const quantity = lotSize;
+    const isEquityCash = sig.metadata['assetClass'] === 'EQUITY_CASH';
+    const underlying = String(sig.metadata['underlyingSymbol'] ?? 'NIFTY');
+    const lots = Math.max(1, Number(sig.metadata['lots'] ?? 1));
+    const quantity = isEquityCash
+      ? lots
+      : getLotSize(instruments, underlying, 'OPT', sig.selectedStrike, sig.optionType) * lots;
     const fillPrice = optionPriceLookup
       ? optionPriceLookup(sig.optionSymbol, sig.spotPrice)
-      : Math.max(5, Math.abs(sig.spotPrice - sig.selectedStrike) + 100);
+      : isEquityCash
+        ? sig.spotPrice
+        : Math.max(5, Math.abs(sig.spotPrice - sig.selectedStrike) + 100);
 
     await this.db.insert(paperPositions).values({
       portfolioId: portfolio.id,

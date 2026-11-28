@@ -71,17 +71,13 @@ export function PaperTradingPage() {
   };
 
   const placeOrderMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/paper/order', {
+    mutationFn: () =>
+      fetchJson('/api/paper/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ symbol, side, quantity, price }),
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to place paper order');
-      return json;
-    },
+      }),
     onSuccess: () => {
       setFeedback({ variant: 'success', text: `Paper ${side} ${quantity} ${symbol} @ ₹${price} filled.` });
       refreshAll();
@@ -90,17 +86,13 @@ export function PaperTradingPage() {
   });
 
   const closeMutation = useMutation({
-    mutationFn: async (pos: Record<string, any>) => {
-      const res = await fetch(`/api/paper/close/${pos['id']}`, {
+    mutationFn: (pos: Record<string, any>) =>
+      fetchJson<{ netPnl?: number }>(`/api/paper/close/${pos['id']}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ exitPrice: Number(pos['currentPrice'] ?? pos['avgEntryPrice']) }),
-      });
-      const json = (await res.json()) as { error?: string; netPnl?: number };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to close position');
-      return json;
-    },
+      }),
     onSuccess: (data) => {
       setFeedback({ variant: 'info', text: `Position squared off. Net P&L: ₹${Number(data.netPnl ?? 0).toFixed(2)}` });
       refreshAll();
@@ -109,17 +101,13 @@ export function PaperTradingPage() {
   });
 
   const resetMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/paper/reset', {
+    mutationFn: () =>
+      fetchJson('/api/paper/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ capital: 1_000_000 }),
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to reset paper capital');
-      return json;
-    },
+      }),
     onSuccess: () => {
       setFeedback({ variant: 'info', text: 'Paper capital reset to ₹10,00,000.' });
       refreshAll();

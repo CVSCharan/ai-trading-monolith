@@ -26,6 +26,7 @@ export class GrowwClient {
   private userId: string | null = null;
   private totpToken: string | null = null;
   private totpSecret: string | null = null;
+  private refreshInFlight: Promise<void> | null = null;
 
   constructor(private growwConfig: { apiBaseUrl: string }, logger: pino.Logger) {
     this.logger = logger.child({ component: 'GrowwClient' });
@@ -81,6 +82,7 @@ export class GrowwClient {
         'Authorization': `Bearer ${totpToken}`,
         'X-API-VERSION': '1.0',
       },
+      signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({ key_type: 'totp', totp }),
     });
 
@@ -99,11 +101,17 @@ export class GrowwClient {
   }
 
   private async refreshAccessToken(): Promise<void> {
-    if (this.totpToken && this.totpSecret) {
-      await this.login(this.totpToken, this.totpSecret);
-      return;
+    if (this.refreshInFlight) {
+      return this.refreshInFlight;
     }
-    throw new Error('No TOTP credentials available for token refresh');
+    if (!this.totpToken || !this.totpSecret) {
+      throw new Error('No TOTP credentials available for token refresh');
+    }
+
+    this.refreshInFlight = this.login(this.totpToken, this.totpSecret).finally(() => {
+      this.refreshInFlight = null;
+    });
+    return this.refreshInFlight;
   }
 
   private async storeTokens(): Promise<void> {
@@ -130,38 +138,34 @@ export class GrowwClient {
     return this.accessToken!;
   }
 
-  async getProfile(): Promise<unknown> {
+  private async fetchAuthedJson<T>(path: string): Promise<T> {
     const token = await this.getAccessToken();
-    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/profile`, {
+    const response = await fetch(`${this.growwConfig.apiBaseUrl}${path}`, {
       headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
     });
-    const body = await response.text();
-    return body ? JSON.parse(body) : {};
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`Groww API ${path} failed (${response.status}): ${body.slice(0, 200)}`);
+    }
+    const text = await response.text();
+    return (text ? JSON.parse(text) : {}) as T;
+  }
+
+  async getProfile(): Promise<unknown> {
+    return this.fetchAuthedJson('/v1/user/profile');
   }
 
   async getFunds(): Promise<unknown> {
-    const token = await this.getAccessToken();
-    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/funds`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    const body = await response.text();
-    return body ? JSON.parse(body) : {};
+    return this.fetchAuthedJson('/v1/user/funds');
   }
 
   async getHoldings(): Promise<unknown> {
-    const token = await this.getAccessToken();
-    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/holdings`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    return response.json();
+    return this.fetchAuthedJson('/v1/user/holdings');
   }
 
   async getPositions(): Promise<{ data?: Array<Record<string, any>> }> {
-    const token = await this.getAccessToken();
-    const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/user/positions`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    return response.json() as Promise<{ data?: Array<Record<string, any>> }>;
+    return this.fetchAuthedJson<{ data?: Array<Record<string, any>> }>('/v1/user/positions');
   }
 
   async placeOrder(order: {
@@ -174,11 +178,13 @@ export class GrowwClient {
     triggerPrice?: number;
     product: 'CNC' | 'MIS' | 'NRML';
     validity: 'DAY' | 'IOC';
+    idempotencyKey?: string;
   }): Promise<unknown> {
     const token = await this.getAccessToken();
-    const idempotencyKey = crypto.randomUUID();
+    const idempotencyKey = order.idempotencyKey ?? crypto.randomUUID();
     const algoName = process.env['GROWW_ALGO_NAME'] || process.env['ALGO_NAME'] || 'AI_TRADER_921_EMA';
 
+    const { idempotencyKey: _ignored, ...orderPayload } = order;
     const response = await fetch(`${this.growwConfig.apiBaseUrl}/v1/orders`, {
       method: 'POST',
       headers: {
@@ -187,8 +193,9 @@ export class GrowwClient {
         'X-Idempotency-Key': idempotencyKey,
         'X-Algo-Name': algoName,
       },
+      signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
-        ...order,
+        ...orderPayload,
         tag: 'ai_trader_algo',
       }),
     });

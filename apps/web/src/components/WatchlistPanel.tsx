@@ -50,16 +50,13 @@ export function WatchlistPanel() {
   });
 
   const addMutation = useMutation({
-    mutationFn: async (item: { symbol: string; exchange: string; segment: string }) => {
-      const res = await fetch('/api/watchlist', {
+    mutationFn: (item: { symbol: string; exchange: string; segment: string }) =>
+      fetchJson('/api/watchlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(item),
-      });
-      if (!res.ok) throw new Error('Failed to pin symbol');
-      return res.json();
-    },
+      }),
     onSuccess: () => {
       void refetch();
       setShowSearch(false);
@@ -68,14 +65,11 @@ export function WatchlistPanel() {
   });
 
   const removeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/watchlist/${id}`, {
+    mutationFn: (id: string) =>
+      fetchJson(`/api/watchlist/${id}`, {
         method: 'DELETE',
         credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Failed to remove symbol');
-      return res.json();
-    },
+      }),
     onSuccess: () => void refetch(),
   });
 
