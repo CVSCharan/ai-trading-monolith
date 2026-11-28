@@ -542,7 +542,7 @@ export const engineHealth = pgTable('engine_health', {
   errorsLastHour: integer('errors_last_hour').notNull().default(0),
   metadata: jsonb('metadata').notNull().default('{}'),
 }, (table) => ({
-  hostIdx: index('engine_health_host_idx').on(table.hostId),
+  hostIdx: uniqueIndex('engine_health_host_uidx').on(table.hostId),
 }));
 
 // ============================================

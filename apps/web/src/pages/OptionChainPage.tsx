@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layers, RefreshCw } from 'lucide-react';
 import type { OptionChainRow } from '@groww-trading/shared';
+import { getISTDateString } from '@groww-trading/shared';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -28,17 +29,17 @@ const UNDERLYINGS = [
   { label: 'NIFTY BANK', key: 'NSE_INDEX|Nifty Bank' },
 ];
 
-function getNextThursday(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = (4 - day + 7) % 7 || 7;
-  now.setDate(now.getDate() + diff);
-  return now.toISOString().slice(0, 10);
+function getNextTuesdayIST(): string {
+  const istNow = new Date(Date.now() + 330 * 60_000);
+  const day = istNow.getUTCDay();
+  const diff = (2 - day + 7) % 7 || 7;
+  const target = new Date(Date.now() + diff * 86_400_000);
+  return getISTDateString(target);
 }
 
 export function OptionChainPage() {
   const [instrumentKey, setInstrumentKey] = useState(UNDERLYINGS[0].key);
-  const [expiryDate, setExpiryDate] = useState(getNextThursday);
+  const [expiryDate, setExpiryDate] = useState(getNextTuesdayIST);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery<OptionChainResponse>({
     queryKey: ['upstox-option-chain', instrumentKey, expiryDate],

@@ -166,6 +166,14 @@ export const strategyRoutes = new Elysia({ prefix: '/api/strategies' })
       })
       .returning();
 
+    await logAuditEvent({
+      userId,
+      action: 'STRATEGY_CLONED',
+      entityType: 'strategy',
+      entityId: cloned?.id,
+      details: { sourceStrategyId: source.id },
+    });
+
     set.status = 201;
     return { strategy: cloned };
   });

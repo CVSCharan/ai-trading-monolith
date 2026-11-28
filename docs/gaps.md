@@ -499,14 +499,14 @@ Industry minimum for HMAC-SHA256 JWT signing key is 32 chars (256 bits). The pla
 | GAP-03 | Data Integrity | 🔴 Critical | Low | ✅ Fixed (Paper tx) | Double position on crash |
 | GAP-04 | Code Quality | 🔴 Critical | Medium | ⏳ Open | Silent runtime errors in live orders |
 | GAP-05 | Risk Management | 🔴 Critical | High | ✅ Fixed (`onOptionTick` SL) | Catastrophic single-trade loss |
-| GAP-06 | Database Performance | 🔴 Critical | High | ⏳ Open | Backtest query degradation over time |
+| GAP-06 | Database Performance | 🔴 Critical | High | ✅ Fixed (BRIN `bar_time` idx) | Backtest query degradation over time |
 | GAP-07 | Testing | 🟡 Important | High | 🔄 Partial (99 unit tests; E2E pending) | Regressions undetected |
-| GAP-08 | CI/CD | 🟡 Important | Low | ⏳ Open | Lint violations merge silently |
+| GAP-08 | CI/CD | 🟡 Important | Low | ✅ Fixed (`bun run lint` in CI) | Lint violations merge silently |
 | GAP-09 | Security / Infrastructure | 🟡 Important | Low | ✅ Fixed (Non-root + HEALTHCHECK) | Root container exploitation |
 | GAP-10 | Infrastructure | 🟡 Important | Medium | ✅ Fixed (`apps/engine/Dockerfile`) | Static IP compliance risk |
-| GAP-11 | Data Integrity | 🟡 Important | Medium | ⏳ Open | Stale lot sizes, missing strikes |
-| GAP-12 | Observability | 🟡 Important | Medium | ⏳ Open | Dashboard shows no engine state |
-| GAP-13 | Database | 🟡 Important | Low | ⏳ Open | 3M+ rows/year in health table |
+| GAP-11 | Data Integrity | 🟡 Important | Medium | ✅ Fixed (`syncInstrumentMaster` upsert) | Stale lot sizes, missing strikes |
+| GAP-12 | Observability | 🟡 Important | Medium | ✅ Fixed (`publishState` upsert) | Dashboard shows no engine state |
+| GAP-13 | Database | 🟡 Important | Low | ✅ Fixed (`engine_health` host upsert) | 3M+ rows/year in health table |
 | GAP-14 | Security | 🟡 Important | Medium | ✅ Fixed (`upstox_credentials`) | Upstox token leakage vector |
 | GAP-15 | Security | 🟡 Important | Low | ⏳ Open | 2FA brute-force window |
 | GAP-16 | Strategy | 🟢 Nice-to-have | High | ⏳ Open | Suboptimal sizing |
@@ -525,8 +525,8 @@ Industry minimum for HMAC-SHA256 JWT signing key is 32 chars (256 bits). The pla
 | GAP-29 | Broker Integration | 🟡 Important | Low | ✅ Fixed | `GET /api/upstox/callback` exchanges OAuth code for `access_token` and discards it |
 | GAP-30 | API / Backtesting | 🟡 Important | Low | ✅ Fixed | `backtest-runner` lacks atomic job claim (`SKIP LOCKED`), uses UTC `Z` for dates, and `backtest.ts` lacks list/delete & `endDate >= startDate` check |
 | GAP-31 | Frontend Resilience | 🟡 Important | Medium | 🔄 Partial (Core pages migrated) | Raw `fetch()` + unguarded `res.json()` causes `Unexpected end of JSON input` |
-| GAP-32 | Market / Regulatory | 🟡 Important | Low | ⏳ Open | `OptionChainPage` defaults to `getNextThursday()` (NSE moved NIFTY weekly expiry to Tuesday) in UTC |
-| GAP-33 | API / Strategy | 🟡 Important | Low | ⏳ Open | Strategy `DELETE` doesn't stop active engine sessions; `clone` skips audit log; `paper-trading.ts` hardcodes ₹40/₹60 costs |
+| GAP-32 | Market / Regulatory | 🟡 Important | Low | ✅ Fixed (Tuesday IST expiry) | `OptionChainPage` defaults to `getNextThursday()` (NSE moved NIFTY weekly expiry to Tuesday) in UTC |
+| GAP-33 | API / Strategy | 🟡 Important | Low | ✅ Fixed (Clone audit + shared market status) | Strategy `DELETE` doesn't stop active engine sessions; `clone` skips audit log; `paper-trading.ts` hardcodes ₹40/₹60 costs |
 
 ---
 

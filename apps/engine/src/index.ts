@@ -324,7 +324,19 @@ async function publishHeartbeat() {
       errorsLastHour: commandProcessor.getErrorCount(),
     };
 
-    await db.insert(engineHealth).values(health);
+    await db
+      .insert(engineHealth)
+      .values(health)
+      .onConflictDoUpdate({
+        target: engineHealth.hostId,
+        set: {
+          status: health.status,
+          lastCheck: health.lastCheck,
+          metrics: health.metrics,
+          activeSessions: health.activeSessions,
+          errorsLastHour: health.errorsLastHour,
+        },
+      });
   } catch (error) {
     logger.error({ err: error }, 'Error publishing heartbeat');
   }
@@ -334,9 +346,32 @@ async function publishState() {
   if (isShuttingDown) return;
 
   try {
-    // Engine publishes state per user/run-type
-    // This is called by paperEngine and liveEngine internally
-    // Here we just ensure the health record is fresh
+    const sessions = commandProcessor.getActiveSessions();
+    const now = new Date();
+    for (const [userId, session] of sessions.entries()) {
+      for (const runType of ['paper', 'live'] as const) {
+        const isRunning = Boolean(session[runType]);
+        await db
+          .insert(engineState)
+          .values({
+            userId,
+            runType,
+            isRunning,
+            lastHeartbeat: now,
+            openOrders: runType === 'live' ? liveEngine.getOpenPositions() : [],
+            updatedAt: now,
+          })
+          .onConflictDoUpdate({
+            target: [engineState.userId, engineState.runType],
+            set: {
+              isRunning,
+              lastHeartbeat: now,
+              openOrders: runType === 'live' ? liveEngine.getOpenPositions() : [],
+              updatedAt: now,
+            },
+          });
+      }
+    }
   } catch (error) {
     logger.error({ err: error }, 'Error publishing state');
   }

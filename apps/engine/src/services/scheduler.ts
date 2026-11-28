@@ -223,11 +223,62 @@ export class TradingScheduler {
   }
 
   async syncInstrumentMaster(): Promise<void> {
-    try {
-      const chain = await this.growwClient.getOptionChain('NIFTY', '');
-      this.logger.info({ hasChain: Boolean(chain) }, 'Weekly instrument master sync executed');
-    } catch (err) {
-      this.logger.error({ err }, 'Weekly instrument master sync failed');
+    const todayStr = getISTDateString(new Date());
+    let upserted = 0;
+
+    for (const underlying of ['NIFTY', 'BANKNIFTY'] as const) {
+      try {
+        const raw = (await this.growwClient.getOptionChain(underlying, '')) as {
+          strikes?: Array<Record<string, any>>;
+          data?: Array<Record<string, any>>;
+        } | null;
+
+        const rows = raw?.strikes ?? raw?.data ?? [];
+        for (const row of rows) {
+          const strike = Number(row['strike_price'] ?? row['strikePrice'] ?? 0);
+          if (!Number.isFinite(strike) || strike <= 0) continue;
+
+          for (const optType of ['CE', 'PE'] as const) {
+            const leg = (row[optType] ?? row[optType.toLowerCase()]) as Record<string, any> | undefined;
+            const token = String(leg?.['trading_symbol'] ?? leg?.['growwToken'] ?? '');
+            if (!token) continue;
+
+            const lotSize = Number(leg?.['lot_size'] ?? (underlying === 'NIFTY' ? 75 : 30));
+            const expiryStr = leg?.['expiry_date'] ? String(leg['expiry_date']).slice(0, 10) : null;
+
+            await this.db
+              .insert(instruments)
+              .values({
+                symbol: underlying,
+                instrumentType: 'OPT',
+                exchange: 'NSE',
+                segment: 'FO',
+                lotSize,
+                strikeStep: underlying === 'NIFTY' ? 50 : 100,
+                underlyingSymbol: underlying,
+                strikePrice: strike.toFixed(2),
+                optionType: optType,
+                expiryDate: expiryStr,
+                expiryType: 'WEEKLY',
+                isActive: true,
+                validFrom: todayStr,
+                growwToken: token,
+              })
+              .onConflictDoUpdate({
+                target: instruments.growwToken,
+                set: {
+                  lotSize,
+                  isActive: true,
+                },
+              });
+            upserted++;
+          }
+        }
+      } catch (err) {
+        this.logger.warn({ err, underlying }, 'Instrument master sync failed for underlying');
+      }
     }
+
+    this.logger.info({ upserted }, 'Weekly instrument master sync complete');
   }
 }

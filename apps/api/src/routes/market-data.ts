@@ -6,14 +6,6 @@ import { db } from '../db';
 import { candles1m, candlesResampled, instruments } from '../db/schema';
 import { authPlugin, requireAuth } from '../middleware/auth-middleware';
 
-function isIndianMarketOpen(now = new Date()): boolean {
-  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-  const day = ist.getDay();
-  if (day === 0 || day === 6) return false;
-  const mins = ist.getHours() * 60 + ist.getMinutes();
-  return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30;
-}
-
 export const marketDataRoutes = new Elysia({ prefix: '/api/market' })
   .use(authPlugin)
   .get('/sessions', async ({ userId, set }) => {
@@ -122,7 +114,7 @@ export const marketDataRoutes = new Elysia({ prefix: '/api/market' })
     async ({ query, userId, set }) => {
       if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
 
-      const marketOpen = isIndianMarketOpen();
+      const marketOpen = Boolean(getMarketStatuses().find((m) => m.id === 'NSE_FNO')?.isOpen);
       try {
         const client = new UpstoxClient({
           analyticsToken: config.upstox.analyticsToken,
