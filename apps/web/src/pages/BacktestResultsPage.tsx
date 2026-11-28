@@ -8,6 +8,7 @@ import { SkeletonMetricCard, SkeletonTable } from '../components/ui/skeleton';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/select';
 import { QueryErrorState } from '../components/ui/query-feedback';
+import { EquityAreaChart } from '../components/charts/EquityAreaChart';
 import { fetchJson } from '../lib/api';
 
 interface StrategyOption {
@@ -91,6 +92,17 @@ export function BacktestResultsPage() {
     queryKey: ['backtest-trades', runId],
     enabled: runData?.run?.status === 'completed',
     queryFn: () => fetchJson<{ trades: Array<Record<string, any>> }>(`/api/backtest/runs/${encodeURIComponent(runId ?? '')}/trades`, { credentials: 'include' }),
+  });
+
+  const { data: equityData } = useQuery<{
+    equityCurve: Array<{ timestamp: string; equity: number; drawdown: number }>;
+  }>({
+    queryKey: ['backtest-equity', runId],
+    enabled: runData?.run?.status === 'completed',
+    queryFn: () =>
+      fetchJson(`/api/backtest/runs/${encodeURIComponent(runId ?? '')}/equity`, {
+        credentials: 'include',
+      }),
   });
 
   const strategies = strategiesData?.strategies ?? [];
@@ -196,6 +208,22 @@ export function BacktestResultsPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {runData?.run?.status === 'completed' && (equityData?.equityCurve ?? []).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Equity Curve</CardTitle>
+          </CardHeader>
+          <CardContent className="h-64">
+            <EquityAreaChart
+              data={(equityData?.equityCurve ?? []).map((p) => ({
+                label: p.timestamp.slice(0, 10),
+                equity: p.equity,
+              }))}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {runData?.run?.status === 'completed' && isTradesLoading && (

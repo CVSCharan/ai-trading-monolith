@@ -64,17 +64,13 @@ export function ProfilePage() {
   });
 
   const saveProfileMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/user/profile', {
+    mutationFn: () =>
+      fetchJson('/api/user/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ displayName, timezone }),
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to update profile');
-      return json;
-    },
+      }),
     onSuccess: () => setFeedback({ variant: 'success', text: 'Profile updated.' }),
     onError: (e: Error) => setFeedback({ variant: 'danger', text: e.message }),
   });

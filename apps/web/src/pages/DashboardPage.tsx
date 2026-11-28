@@ -54,6 +54,13 @@ export function DashboardPage() {
     refetchInterval: 10_000,
   });
 
+  const { data: briefData } = useQuery<{
+    brief: { headline: string; marketRegime: string; briefType: string; istDate: string } | null;
+  }>({
+    queryKey: ['market-brief'],
+    queryFn: () => fetchJson('/api/news/brief', { credentials: 'include' }),
+  });
+
   const capital = Number(paper?.portfolio?.totalValue ?? 0);
   const dayPnl = Number(paper?.portfolio?.dailyPnl ?? 0);
   const trades = paper?.trades ?? [];
@@ -227,6 +234,25 @@ export function DashboardPage() {
       </Card>
 
       <MarketSessionsDashboardCard />
+
+      {briefData?.brief && (
+        <Card className="border-sky-500/20 bg-slate-900/70">
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Badge variant="info">{briefData.brief.briefType.replace('_', ' ')}</Badge>
+                <Badge variant={briefData.brief.marketRegime === 'HIGH_VOLATILITY' ? 'warning' : 'success'}>
+                  {briefData.brief.marketRegime}
+                </Badge>
+              </div>
+              <CardTitle className="text-base text-white pt-1">{briefData.brief.headline}</CardTitle>
+            </div>
+            <Link to="/pulse" className="text-xs font-medium text-sky-400 hover:text-sky-300 shrink-0">
+              Open Market Pulse →
+            </Link>
+          </CardHeader>
+        </Card>
+      )}
 
       <WatchlistPanel />
     </div>

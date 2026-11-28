@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Loader2, TrendingUp, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { fetchJson } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -25,16 +26,12 @@ export function LoginPage() {
     setError(null);
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/sign-in/email', {
+      await fetchJson('/api/auth/sign-in/email', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      if (!res.ok) {
-        const data = await res.json() as { message?: string };
-        throw new Error(data.message ?? 'Invalid credentials');
-      }
       refetch();
       navigate('/', { replace: true });
     } catch (err: unknown) {

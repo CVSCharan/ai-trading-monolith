@@ -4,8 +4,9 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ScrollText, Search } from 'lucide-react';
+import { Download, ScrollText, Search } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { SkeletonTable } from '../components/ui/skeleton';
@@ -37,6 +38,27 @@ export function AuditLogsPage() {
 
   const logs = data?.logs ?? [];
 
+  const exportCsv = () => {
+    const header = ['timestamp_ist', 'action', 'entity_type', 'entity_id', 'details'];
+    const rows = logs.map((r) => [
+      new Date(r.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+      r.action,
+      r.entityType ?? '',
+      r.entityId ?? '',
+      r.details ? JSON.stringify(r.details) : '',
+    ]);
+    const csv = [header, ...rows]
+      .map((line) => line.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -50,14 +72,20 @@ export function AuditLogsPage() {
           </p>
         </div>
 
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-          <Input
-            value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-            placeholder="Filter by action…"
-            className="pl-9 text-xs"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+            <Input
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+              placeholder="Filter by action…"
+              className="pl-9 text-xs"
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={logs.length === 0}>
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </Button>
         </div>
       </div>
 
