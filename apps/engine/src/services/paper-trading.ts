@@ -14,6 +14,7 @@ import {
   paperPositions,
   paperTrades,
   userProfiles,
+  type PaperPortfolio,
 } from '../../../api/src/db/schema';
 import type { GrowwClient } from './groww-client';
 import type { MarketDataService } from './market-data';
@@ -120,7 +121,7 @@ export class PaperTradingEngine {
       .where(eq(paperPortfolios.id, portfolio.id));
   }
 
-  private async checkRiskLimits(userId: string, portfolio: any): Promise<boolean> {
+  private async checkRiskLimits(userId: string, portfolio: PaperPortfolio): Promise<boolean> {
     const [profile] = await this.db
       .select()
       .from(userProfiles)
@@ -149,7 +150,7 @@ export class PaperTradingEngine {
   }
 
   private async openPosition(
-    portfolio: any,
+    portfolio: PaperPortfolio,
     sig: Signal,
     instruments: Instrument[],
     optionPriceLookup?: (symbol: string, spotPrice: number) => number
@@ -196,7 +197,7 @@ export class PaperTradingEngine {
   }
 
   private async closePosition(
-    portfolio: any,
+    portfolio: PaperPortfolio,
     sig: Signal,
     optionPriceLookup?: (symbol: string, spotPrice: number) => number
   ): Promise<void> {

@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Mail, CheckCircle2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { fetchJson } from '../lib/api';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -20,19 +21,14 @@ export function ForgotPasswordPage() {
     setError(null);
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/forgot-password', {
+      await fetchJson('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-      const data = await res.json() as { message?: string; error?: string };
-      if (res.status === 403) {
-        setError(data.error ?? 'Password reset is not available for this account.');
-        return;
-      }
       setSent(true);
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }

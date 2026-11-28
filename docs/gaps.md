@@ -497,7 +497,7 @@ Industry minimum for HMAC-SHA256 JWT signing key is 32 chars (256 bits). The pla
 | GAP-01 | Security / Infrastructure | 🔴 Critical | Medium | ✅ Fixed (Upstash Redis + fallback) | Broker API DoS, brute-force |
 | GAP-02 | Security / Regulatory | 🔴 Critical | Low | ✅ Fixed (Migration 0004 trigger) | Tampered audit trail, SEBI violation |
 | GAP-03 | Data Integrity | 🔴 Critical | Low | ✅ Fixed (Paper tx) | Double position on crash |
-| GAP-04 | Code Quality | 🔴 Critical | Medium | ⏳ Open | Silent runtime errors in live orders |
+| GAP-04 | Code Quality | 🔴 Critical | Medium | 🔄 Partial (`PaperTradingEngine` typed) | Silent runtime errors in live orders |
 | GAP-05 | Risk Management | 🔴 Critical | High | ✅ Fixed (`onOptionTick` SL) | Catastrophic single-trade loss |
 | GAP-06 | Database Performance | 🔴 Critical | High | ✅ Fixed (BRIN `bar_time` idx) | Backtest query degradation over time |
 | GAP-07 | Testing | 🟡 Important | High | 🔄 Partial (99 unit tests; E2E pending) | Regressions undetected |

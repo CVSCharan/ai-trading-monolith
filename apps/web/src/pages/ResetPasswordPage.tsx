@@ -8,6 +8,7 @@ import { ArrowLeft, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { fetchJson } from '../lib/api';
 
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -47,15 +48,11 @@ export function ResetPasswordPage() {
     }
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/reset-password', {
+      await fetchJson('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),
       });
-      const data = await res.json() as { message?: string; error?: string };
-      if (!res.ok) {
-        throw new Error(data.error ?? 'Failed to reset password');
-      }
       setSuccess(true);
       setTimeout(() => navigate('/login', { replace: true }), 2500);
     } catch (err: unknown) {

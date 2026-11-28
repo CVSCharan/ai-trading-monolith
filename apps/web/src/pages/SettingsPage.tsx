@@ -57,14 +57,11 @@ export function SettingsPage() {
   });
 
   const setup2FAMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/auth/2fa/setup', {
+    mutationFn: () =>
+      fetchJson<{ secret: string; uri: string }>('/api/auth/2fa/setup', {
         method: 'POST',
         credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Failed to generate 2FA secret');
-      return res.json() as Promise<{ secret: string; uri: string }>;
-    },
+      }),
     onSuccess: (data) => {
       setTwoFactorSetupData(data);
       setStatusMsg('2FA secret generated. Scan or copy it into your authenticator app.');
@@ -73,17 +70,13 @@ export function SettingsPage() {
   });
 
   const verify2FAMutation = useMutation({
-    mutationFn: async ({ code, secret }: { code: string; secret: string }) => {
-      const res = await fetch('/api/auth/2fa/verify', {
+    mutationFn: ({ code, secret }: { code: string; secret: string }) =>
+      fetchJson('/api/auth/2fa/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ code, secret }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? '2FA verification failed');
-      return data;
-    },
+      }),
     onSuccess: () => {
       setTwoFactorSetupData(null);
       setTwoFactorVerifyCode('');
@@ -94,17 +87,13 @@ export function SettingsPage() {
   });
 
   const disable2FAMutation = useMutation({
-    mutationFn: async (code: string) => {
-      const res = await fetch('/api/auth/2fa/disable', {
+    mutationFn: (code: string) =>
+      fetchJson('/api/auth/2fa/disable', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ code }),
-      });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(data.error ?? 'Failed to disable 2FA');
-      return data;
-    },
+      }),
     onSuccess: () => {
       setShowDisable2FA(false);
       setTwoFactorDisableCode('');
@@ -139,8 +128,8 @@ export function SettingsPage() {
   });
 
   const saveRiskMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/user/risk-limits', {
+    mutationFn: () =>
+      fetchJson('/api/user/risk-limits', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -150,10 +139,7 @@ export function SettingsPage() {
           perTradeRiskPct,
           shortOptionStopLossPct,
         }),
-      });
-      if (!res.ok) throw new Error('Failed to update risk limits');
-      return res.json();
-    },
+      }),
     onSuccess: () => setStatusMsg('Risk guardrails saved & audit-logged.'),
     onError: (e: Error) => setStatusMsg(e.message),
   });
@@ -169,16 +155,13 @@ export function SettingsPage() {
   });
 
   const signInMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/auth/sign-in/email', {
+    mutationFn: () =>
+      fetchJson('/api/auth/sign-in/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ email, password }),
-      });
-      if (!res.ok) throw new Error('Sign in failed');
-      return res.json();
-    },
+      }),
     onSuccess: () => {
       setStatusMsg('Signed in to AI Trader.');
       void refetch();
@@ -187,15 +170,11 @@ export function SettingsPage() {
   });
 
   const syncTokenMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/groww/sync', {
+    mutationFn: () =>
+      fetchJson<{ source?: string }>('/api/groww/sync', {
         method: 'POST',
         credentials: 'include',
-      });
-      const json = (await res.json()) as { error?: string; source?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to sync Groww access token');
-      return json;
-    },
+      }),
     onSuccess: (data) => {
       setStatusMsg(`Groww access token synced successfully (source: ${data.source ?? 'env'}).`);
       void refetch();
@@ -204,16 +183,13 @@ export function SettingsPage() {
   });
 
   const connectGrowwMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/groww/connect', {
+    mutationFn: () =>
+      fetchJson('/api/groww/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ totpToken, totpSecret }),
-      });
-      if (!res.ok) throw new Error('Failed to save Groww TOTP credentials');
-      return res.json();
-    },
+      }),
     onSuccess: () => {
       setStatusMsg('Groww TOTP credentials encrypted & saved in DB.');
       setTotpToken('');
