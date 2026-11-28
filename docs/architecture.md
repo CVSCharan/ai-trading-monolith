@@ -1,43 +1,50 @@
-# System Architecture
+# System Architecture — AI Trader Monolith
+> **Status:** Current & Authoritative (Updated 2026-11-28 | Sprint 19 Baseline)
 
 ## High-Level Design
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              CLIENT (Browser)                                │
-│  React 18 + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query       │
+│  React 18 + TypeScript + Vite + Tailwind + Shadcn UI + TanStack Query       │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌───────────┐  │
-│  │ Dashboard  │ │ Strategy   │ │  Backtest  │ │ Trade      │ │ Paper/    │  │
-│  │ Overview   │ │ Builder    │ │  Results   │ │ Auditor    │ │ Live      │  │
+│  │ Dashboard  │ │ Market     │ │ Strategy   │ │  Backtest  │ │ Trade     │  │
+│  │ Overview   │ │ Pulse AI   │ │ Builder    │ │  Results   │ │ Auditor   │  │
 │  └────────────┘ └────────────┘ └────────────┘ └────────────┘ └───────────┘  │
-└──────────────────────────────────┬────────────────────────────────────────────┘
-                                   │ HTTPS / WSS
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌───────────┐  │
+│  │ Option     │ │ Bot        │ │ Strategy   │ │ Paper/     │ │ Audit     │  │
+│  │ Chain      │ │ Control    │ │ Handbook   │ │ Live Trade │ │ Trail     │  │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────┘ └───────────┘  │
+└──────────────────────────────────┬──────────────────────────────────────────┘
+                                   │ HTTPS / User-Scoped WSS (:3000)
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                            API GATEWAY (Elysia)                              │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌───────────┐  │
-│  │   Auth     │ │ Strategies │ │  Backtest  │ │   Trades   │ │  Market   │  │
-│  │  Routes    │ │  Routes    │ │  Routes    │ │  Routes    │ │  Data     │  │
-│  └────────────┘ └────────────┘ └────────────┘ └────────────┘ └───────────┘  │
-│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌───────────┐  │
-│  │   Paper    │ │   Live     │ │  Screener  │ │  WebSocket │ │  Health   │  │
-│  │  Trading   │ │  Trading   │ │  Routes    │ │  Manager   │ │  Check    │  │
-│  └────────────┘ └────────────┘ └────────────┘ └────────────┘ └───────────┘  │
-└──────────────────────────────────┬────────────────────────────────────────────┘
+│                       CONTROL PLANE API (`apps/api` :3000)                  │
+│  • Better Auth + RBAC + Operator 2FA (TOTP)                                  │
+│  • Strategy & Backtest Job Runners (`SKIP LOCKED` concurrency)               │
+│  • Trade Auditor Directory & Strategy Cross-Verification APIs               │
+│  • Market Pulse News Ingestion & Sentiment Classification                   │
+│  • Sliding-Window Rate Limiters (Upstash Redis + fallback)                  │
+└──────────────────────────────────┬──────────────────────────────────────────┘
                                    │
-        ┌──────────────────────────┼──────────────────────────┐
-        ▼                          ▼                          ▼
-┌───────────────┐         ┌─────────────────┐         ┌───────────────┐
-│  PostgreSQL   │         │   Groww API     │         │  Strategy     │
-│  (Neon)       │         │   Client        │         │  Engine       │
-│               │         │                 │         │               │
-│  • users      │         │  • REST API     │         │  • Indicators │
-│  • strategies │         │  • WebSocket    │         │  • Signals    │
-│  • candles    │         │  • Auth (TOTP)  │         │  • Execution  │
-│  • trades     │         │  • Orders       │         │  • Backtest   │
-│  • positions  │         │  • Portfolio    │         │  • Risk Mgmt  │
-│  • audit_logs │         └─────────────────┘         └───────────────┘
-└───────────────┘
+                                   ▼ PostgreSQL (State & Commands)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      DURABLE PERSISTENCE (Neon PostgreSQL)                   │
+│  • `engine_commands` & `engine_state` (Inter-process RPC)                   │
+│  • `audit_logs` (Immutable append-only with PostgreSQL trigger)             │
+│  • `live_fills` & `live_positions` (Transactional atomic persistence)       │
+│  • `candles_1m` & `candles_resampled` (BRIN indexed)                        │
+└──────────────────────────────────▲──────────────────────────────────────────┘
+                                   │ Polling & State Heartbeat (:3001)
+                                   │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 STATIC-IP EXECUTION ENGINE (`apps/engine` :3001)            │
+│  • LiveBarAggregator (09:15-15:30 IST alignment + bad tick anomaly filter)   │
+│  • Strategy Core (EMA 9/21, ORB, VWAP, RSI - zero dependencies)             │
+│  • LiveTradingEngine (15:00 square-off, 1% limit protection, reversal sync) │
+│  • BrokerOrderSyncService (Dual-channel WS fill ingestion + 5s reconciliation)│
+│  • Multi-Broker Router: Groww TOTP / Upstox v3 (Static IP & NSE INSP77559)  │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---

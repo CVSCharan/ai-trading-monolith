@@ -24,8 +24,10 @@ groww-ai-trading-monolith/
 
 - [Algo Trading Guide](docs/guides/algo-trading-guide.md) — Comprehensive backtest to live bot guide
 - [Production Deployment & Pre-Live Checklist](docs/deployment/production-checklist.md) — Pre-live gates & NSE regulatory checklist
-- [System Architecture](docs/architecture.md) — Monorepo services, data flow, and database models
-- [Strategy Specification](docs/strategy-docs-v2.md) — 9/21 EMA crossover options strategy specification
+- [Architectural Decision Records](docs/decisions.md) — Authoritative ADRs (Monorepo, Static-IP split, Dual-broker routing, Audit triggers, Strategy Verification)
+- [System Architecture](docs/architecture.md) — Monorepo services, data flow, static-IP execution engine, and database models
+- [Strategy Specification](docs/strategy-docs-v2.md) — 9/21 EMA crossover options strategy specification & verification checklist
+- [Strategy Handbook & Academy](apps/web/src/pages/TradingAcademyPage.tsx) — In-app interactive learning handbook, Greeks models, and live trade cross-verification (`/academy`, `/trade-auditor`)
 - [Project Plan](docs/project-plan.md) — Multi-sprint roadmap and deliverables
 - [Sprint 19 Hardening](docs/progress/sprints/sprint-19.md) — Live trading safety, Operator 2FA & durable state
 - [Gaps Analysis](docs/gaps.md) — Full audit of all known gaps (Critical / Important / Nice-to-have)

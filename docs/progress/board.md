@@ -15,6 +15,11 @@
 
 | Ticket | Title | Completed |
 |--------|-------|-----------|
+| S19-015 | Atomic database transactions for live order & position state (`GAP-03`) | 2026-11-28 |
+| S19-016 | Granular sliding-window rate limiting on sensitive 2FA & auth endpoints (`GAP-15`) | 2026-11-28 |
+| S19-017 | Bad-tick & flash-spike anomaly filter in `LiveBarAggregator` (`GAP-20`) | 2026-11-28 |
+| S19-018 | 32-character minimum cryptographic entropy for `BETTER_AUTH_SECRET` (`GAP-22`) | 2026-11-28 |
+| AUDIT-002 | Automated strategy cross-verification matrix (`StrategyVerificationCard`) & trade directory (`/trade-auditor`) | 2026-11-28 |
 | S19-008 | Broker order fill stream ingestion & dual poller sync (`BrokerOrderSyncService`) | 2026-11-28 |
 | S19-011 | End-to-end multi-broker simulation test suite (`apps/engine/test/live-integration.test.ts`) | 2026-11-28 |
 | S19-007 | Live option quotes: Wire `optionPriceLookup` (`MarketData` cache + dataBroker/executionBroker quotes) in `apps/engine/src/index.ts` | 2026-11-28 |

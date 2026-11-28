@@ -28,3 +28,16 @@
 ## ADR-006 · Optional n8n Sidecar (Never in Order Execution)
 - **Decision:** Keep order execution, stop-losses, and risk checks strictly inside `apps/engine`. Use n8n only as an optional external sidecar via HMAC-signed webhooks for multi-channel alert fan-out (WhatsApp/Slack/Email).
 - **Rationale:** Preserves sub-second deterministic execution latency and regulatory audit boundaries.
+
+## ADR-007 · Automated Strategy Cross-Verification & Execution Invariants
+- **Decision:** Provide a dedicated Forensic Trade Auditor (`/trade-auditor`) and automated rule verification engine (`StrategyVerificationCard`) that evaluates completed trades against the formal 5 quantitative rules:
+  1. Entry window compliance (09:30–14:45 IST, skipping 09:15–09:30 opening auction noise)
+  2. Mandatory 15:00 IST square-off (zero overnight risk)
+  3. Directional option contract mapping (Bullish → CE, Bearish → PE)
+  4. Protected limit order bounds (1% buffer + ₹0.05 tick rounding)
+  5. Regulatory friction & statutory tax efficiency (STT, turnover, GST, stamp duty)
+- **Rationale:** Institutional quant desks require automated, objective proof that actual fills complied with algorithmic strategy rules and exchange mandates.
+
+## ADR-008 · Transactional Order State Persistence & Bad-Tick Sanitization
+- **Decision:** Wrap all PostgreSQL live order (`liveFills`) and position (`livePositions`) writes inside atomic transactions (`db.transaction()`), and enforce bad-tick filtering in `LiveBarAggregator` (reject non-finite, negative, and >60% single-tick flash spikes).
+- **Rationale:** Prevents partial database state during crashes or socket disconnects, and protects EMA indicator calculations from anomalous broker feed glitches.
