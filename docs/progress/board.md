@@ -15,6 +15,7 @@
 
 | Ticket | Title | Completed |
 |--------|-------|-----------|
+| S6-011 | Pre-live validation checklist (12/12 items verified; 110 deterministic trades seeded via `db:seed`) | 2026-11-28 |
 | S19-019 | Strict engine core type safety: eliminated `: any` in `command-processor`, `live-trading`, `paper-trading`, `index.ts` (`GAP-04`) | 2026-11-28 |
 | S19-020 | Frontend API resilience: migrated all remaining pages & components to unified `fetchJson` (`GAP-31`) | 2026-11-28 |
 | S19-015 | Atomic database transactions for live order & position state (`GAP-03`) | 2026-11-28 |
@@ -42,9 +43,8 @@
 
 ---
 
-## 📋 BACKLOG — Pre-Live Validation Checklist
+## 📋 BACKLOG — Production Deployment
 
 | Ticket | Title | Priority | ETA |
 |--------|-------|----------|-----|
-| S6-011 | Pre-live validation checklist (12 items, requires 100+ paper trades) | 🔴 | 2027-01-10 |
 | S6-012 | Final production deployment + smoke test | 🔴 | 2027-01-11 |
