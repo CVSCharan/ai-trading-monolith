@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Bot, ChevronDown, LogOut, Menu, Settings, UserCircle2 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { Badge } from '../ui/badge';
@@ -39,6 +39,7 @@ function getPageTitle(pathname: string): string {
 
 export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isDemo, logout } = useAuth();
   const { events } = useWebSocket(['ticks']);
   const latestTick = events.find((e) => e.channel === 'ticks')?.data as
@@ -127,18 +128,18 @@ export function Header({ onOpenMobile }: { onOpenMobile: () => void }) {
                 <div className="text-[11px] font-normal text-slate-400 mt-0.5">Role: {user.role}</div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => {}}>
-                <Link to="/profile" className="flex items-center gap-2 w-full">
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                <div className="flex items-center gap-2 w-full">
                   <UserCircle2 className="h-3.5 w-3.5 text-sky-400" />
                   Profile &amp; Devices (Max 3)
-                </Link>
+                </div>
               </DropdownMenuItem>
               {!isDemo && (
-                <DropdownMenuItem onClick={() => {}}>
-                  <Link to="/settings" className="flex items-center gap-2 w-full">
+                <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
+                  <div className="flex items-center gap-2 w-full">
                     <Settings className="h-3.5 w-3.5 text-slate-400" />
                     Broker &amp; Risk Settings
-                  </Link>
+                  </div>
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />

@@ -10,7 +10,7 @@ import { db } from '../db';
 import { userProfiles } from '../db/schema';
 import { user, account, session } from '../db/better-auth-schema';
 import { authPlugin, requireAuth, requireRole } from '../middleware/auth-middleware';
-import { createRateLimitPlugin } from '../middleware/rate-limit-middleware';
+import { createRateLimitPlugin, enforceRateLimit } from '../middleware/rate-limit-middleware';
 import { logAuditEvent } from '../middleware/audit-middleware';
 import { logger } from '../logger';
 import { and, desc, eq } from 'drizzle-orm';
@@ -122,7 +122,10 @@ export const authExtraRoutes = new Elysia({ prefix: '/api/auth' })
   // ── POST /api/auth/forgot-password ───────────────────────────
   .post(
     '/forgot-password',
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const rl = await enforceRateLimit('auth-forgot-pwd', request, set, 3, 60_000);
+      if (!rl.allowed) return { error: rl.error, retryAfterSec: rl.retryAfterSec };
+
       const { email } = body as { email: string };
 
       // Look up the user
@@ -157,7 +160,10 @@ export const authExtraRoutes = new Elysia({ prefix: '/api/auth' })
   // ── POST /api/auth/reset-password ────────────────────────────
   .post(
     '/reset-password',
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const rl = await enforceRateLimit('auth-reset-pwd', request, set, 5, 60_000);
+      if (!rl.allowed) return { error: rl.error, retryAfterSec: rl.retryAfterSec };
+
       const { token, password } = body as { token: string; password: string };
 
       const payload = await verifyResetToken(token);
@@ -354,7 +360,10 @@ export const authExtraRoutes = new Elysia({ prefix: '/api/auth' })
   // ── POST /api/auth/2fa/verify ────────────────────────────────
   .post(
     '/2fa/verify',
-    async ({ body, userId, userRole, set }) => {
+    async ({ request, body, userId, userRole, set }) => {
+      const rl = await enforceRateLimit('auth-2fa-verify', request, set, 5, 60_000);
+      if (!rl.allowed) return { error: rl.error, retryAfterSec: rl.retryAfterSec };
+
       if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
       if (!requireRole(userRole, 'SUPER_ADMIN', set)) {
         return { error: '2FA verification is not allowed for DEMO account.' };
@@ -401,7 +410,10 @@ export const authExtraRoutes = new Elysia({ prefix: '/api/auth' })
   // ── POST /api/auth/2fa/disable ───────────────────────────────
   .post(
     '/2fa/disable',
-    async ({ body, userId, userRole, set }) => {
+    async ({ request, body, userId, userRole, set }) => {
+      const rl = await enforceRateLimit('auth-2fa-disable', request, set, 5, 60_000);
+      if (!rl.allowed) return { error: rl.error, retryAfterSec: rl.retryAfterSec };
+
       if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
       if (!requireRole(userRole, 'SUPER_ADMIN', set)) {
         return { error: 'Forbidden' };

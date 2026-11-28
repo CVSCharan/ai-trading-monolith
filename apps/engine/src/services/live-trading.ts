@@ -388,32 +388,40 @@ export class LiveTradingEngine {
       if (this.db) {
         try {
           const posSide: 'LONG' | 'SHORT' = side === 'BUY' ? 'LONG' : 'SHORT';
-          await this.db.insert(liveFills).values({
-            userId,
-            growwOrderId: orderId,
-            idempotencyKey: fillUuid,
-            symbol: (signal.metadata?.['underlyingSymbol'] as string) || symbol,
-            optionSymbol: symbol,
-            side,
-            orderType: 'LIMIT',
-            quantity: orderQuantity,
-            limitPrice: String(limitPrice),
-            status: 'OPEN',
-            placedAt: new Date(),
-            updatedAt: new Date(),
-          });
+          const executeEntry = async (client: any) => {
+            await client.insert(liveFills).values({
+              userId,
+              growwOrderId: orderId,
+              idempotencyKey: fillUuid,
+              symbol: (signal.metadata?.['underlyingSymbol'] as string) || symbol,
+              optionSymbol: symbol,
+              side,
+              orderType: 'LIMIT',
+              quantity: orderQuantity,
+              limitPrice: String(limitPrice),
+              status: 'OPEN',
+              placedAt: new Date(),
+              updatedAt: new Date(),
+            });
 
-          await this.db.insert(livePositions).values({
-            userId,
-            optionSymbol: symbol,
-            side: posSide,
-            quantity: orderQuantity,
-            avgEntryPrice: String(optionPrice),
-            currentPrice: String(optionPrice),
-            unrealizedPnl: '0',
-            realizedPnl: '0',
-            openedAt: new Date(),
-          });
+            await client.insert(livePositions).values({
+              userId,
+              optionSymbol: symbol,
+              side: posSide,
+              quantity: orderQuantity,
+              avgEntryPrice: String(optionPrice),
+              currentPrice: String(optionPrice),
+              unrealizedPnl: '0',
+              realizedPnl: '0',
+              openedAt: new Date(),
+            });
+          };
+
+          if (typeof (this.db as any).transaction === 'function') {
+            await (this.db as any).transaction(executeEntry);
+          } else {
+            await executeEntry(this.db);
+          }
         } catch (err) {
           this.logger.error({ err, orderId, symbol }, 'Failed to persist live entry order/position in PostgreSQL');
         }
@@ -428,24 +436,32 @@ export class LiveTradingEngine {
 
       if (this.db) {
         try {
-          await this.db.insert(liveFills).values({
-            userId,
-            growwOrderId: orderId,
-            idempotencyKey: fillUuid,
-            symbol: (signal.metadata?.['underlyingSymbol'] as string) || symbol,
-            optionSymbol: symbol,
-            side,
-            orderType: 'LIMIT',
-            quantity: orderQuantity,
-            limitPrice: String(limitPrice),
-            status: 'OPEN',
-            placedAt: new Date(),
-            updatedAt: new Date(),
-          });
+          const executeExit = async (client: any) => {
+            await client.insert(liveFills).values({
+              userId,
+              growwOrderId: orderId,
+              idempotencyKey: fillUuid,
+              symbol: (signal.metadata?.['underlyingSymbol'] as string) || symbol,
+              optionSymbol: symbol,
+              side,
+              orderType: 'LIMIT',
+              quantity: orderQuantity,
+              limitPrice: String(limitPrice),
+              status: 'OPEN',
+              placedAt: new Date(),
+              updatedAt: new Date(),
+            });
 
-          await this.db.update(livePositions)
-            .set({ currentPrice: String(limitPrice) })
-            .where(and(eq(livePositions.userId, userId), eq(livePositions.optionSymbol, symbol), isNull(livePositions.closedAt)));
+            await client.update(livePositions)
+              .set({ currentPrice: String(limitPrice) })
+              .where(and(eq(livePositions.userId, userId), eq(livePositions.optionSymbol, symbol), isNull(livePositions.closedAt)));
+          };
+
+          if (typeof (this.db as any).transaction === 'function') {
+            await (this.db as any).transaction(executeExit);
+          } else {
+            await executeExit(this.db);
+          }
         } catch (err) {
           this.logger.error({ err, orderId, symbol }, 'Failed to persist live exit order in PostgreSQL');
         }

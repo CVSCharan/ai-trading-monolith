@@ -6,6 +6,36 @@ import { authPlugin, requireAuth } from '../middleware/auth-middleware';
 
 export const tradeRoutes = new Elysia({ prefix: '/api/trades' })
   .use(authPlugin)
+  .get('/recent', async ({ userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const recent = await db
+      .select({
+        id: backtestTrades.id,
+        tradeNum: backtestTrades.tradeNum,
+        symbol: backtestTrades.symbol,
+        optionSymbol: backtestTrades.optionSymbol,
+        side: backtestTrades.side,
+        entryTime: backtestTrades.entryTime,
+        entryPrice: backtestTrades.entryPrice,
+        exitTime: backtestTrades.exitTime,
+        exitPrice: backtestTrades.exitPrice,
+        quantity: backtestTrades.quantity,
+        netPnl: backtestTrades.netPnl,
+        grossPnl: backtestTrades.grossPnl,
+        costs: backtestTrades.costs,
+        exitReason: backtestTrades.exitReason,
+        runId: backtestRuns.id,
+        runName: backtestRuns.name,
+      })
+      .from(backtestTrades)
+      .innerJoin(backtestRuns, eq(backtestTrades.backtestRunId, backtestRuns.id))
+      .where(eq(backtestRuns.userId, userId))
+      .orderBy(desc(backtestTrades.entryTime))
+      .limit(50);
+
+    return { trades: recent };
+  })
   .get('/:id', async ({ params, userId, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
 

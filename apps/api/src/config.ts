@@ -6,7 +6,7 @@ const EnvSchema = z.object({
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
   DATABASE_URL: z.string().url().default('postgresql://postgres:postgres@localhost:5432/trading'),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
-  BETTER_AUTH_SECRET: z.string().min(16).default('dev-secret-change-me-in-prod'),
+  BETTER_AUTH_SECRET: z.string().min(32).default('dev-secret-change-me-in-prod-must-be-32-chars-minimum'),
   BETTER_AUTH_URL: z.string().url().default('http://localhost:3000'),
   ENCRYPTION_MASTER_KEY: z.string().optional(),
 

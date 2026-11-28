@@ -70,6 +70,45 @@ async function checkUpstashRedisRateLimit(
   }
 }
 
+export const granularLimiters = new Map<string, SlidingWindowRateLimiter>();
+
+export async function enforceRateLimit(
+  name: string,
+  request: Request,
+  set: { status?: number | string | any; headers?: Record<string, any> | any },
+  maxRequests: number,
+  windowMs: number
+): Promise<{ allowed: boolean; error?: string; retryAfterSec?: number }> {
+  let limiter = granularLimiters.get(name);
+  if (!limiter) {
+    limiter = new SlidingWindowRateLimiter(maxRequests, windowMs);
+    granularLimiters.set(name, limiter);
+  }
+
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    request.headers.get('x-real-ip') ??
+    'local';
+  const key = `rl:${name}:${ip}`;
+
+  const redisResult = await checkUpstashRedisRateLimit(key, maxRequests, windowMs);
+  const result = redisResult ?? limiter.check(key);
+
+  if (!result.allowed) {
+    set.status = 429;
+    if (set.headers) {
+      set.headers['retry-after'] = String(result.retryAfterSec);
+    }
+    return {
+      allowed: false,
+      error: 'Too Many Requests',
+      retryAfterSec: result.retryAfterSec,
+    };
+  }
+
+  return { allowed: true };
+}
+
 export function createRateLimitPlugin(options: {
   name: string;
   maxRequests: number;

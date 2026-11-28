@@ -106,6 +106,20 @@ export class LiveBarAggregator {
   }
 
   ingestTick(symbol: string, ltp: number, timestamp: Date = new Date(), volumeDelta = 0): void {
+    // GAP-20: Filter out non-finite, zero, or negative ticks
+    if (!Number.isFinite(ltp) || ltp <= 0) {
+      return;
+    }
+
+    // GAP-20: Bad tick anomaly filter (> 60% single-tick flash deviation from active bar close)
+    const active5m = this.active.get(`${symbol}:5m`);
+    if (active5m && active5m.close > 0) {
+      const ratio = ltp / active5m.close;
+      if (ratio > 1.6 || ratio < 0.4) {
+        return;
+      }
+    }
+
     this.flushExpiredBars(timestamp);
 
     for (const tf of ['5m', '15m', '30m'] as const) {
