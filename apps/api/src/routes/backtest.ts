@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import { z } from 'zod';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { db } from '../db';
 import { backtestRuns, backtestTrades, strategies } from '../db/schema';
 import { authPlugin, requireAuth } from '../middleware/auth-middleware';
@@ -23,6 +23,11 @@ export const backtestRoutes = new Elysia({ prefix: '/api/backtest' })
     if (!parsed.success) {
       set.status = 400;
       return { error: 'Validation failed', details: parsed.error.flatten() };
+    }
+
+    if (parsed.data.endDate < parsed.data.startDate) {
+      set.status = 400;
+      return { error: 'endDate must be on or after startDate' };
     }
 
     const [strategy] = await db
@@ -60,6 +65,19 @@ export const backtestRoutes = new Elysia({ prefix: '/api/backtest' })
 
     set.status = 202;
     return { runId: run?.id, status: 'queued' };
+  })
+  .get('/runs', async ({ query, userId, set }) => {
+    if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
+
+    const limit = Math.min(50, Math.max(1, Number((query as Record<string, string>)['limit'] ?? '20')));
+    const runs = await db
+      .select()
+      .from(backtestRuns)
+      .where(eq(backtestRuns.userId, userId))
+      .orderBy(desc(backtestRuns.createdAt))
+      .limit(limit);
+
+    return { runs };
   })
   .get('/runs/:id', async ({ params, userId, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };

@@ -125,6 +125,22 @@ export const growwCredentials = pgTable('groww_credentials', {
 });
 
 // ============================================
+// Upstox Credentials (Envelope Encrypted - GAP-14 / GAP-29)
+// ============================================
+
+export const upstoxCredentials = pgTable('upstox_credentials', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().unique().references(() => user.id, { onDelete: 'cascade' }),
+  upstoxUserId: varchar('upstox_user_id', { length: 100 }),
+  accessTokenEncrypted: text('access_token_encrypted'),
+  analyticsTokenEncrypted: text('analytics_token_encrypted'),
+  tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ============================================
 // Instrument Master (Lot sizes, strike steps, validity)
 // ============================================
 

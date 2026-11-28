@@ -30,6 +30,13 @@ export class PaperTradingEngine {
     this.logger = logger.child({ component: 'PaperTradingEngine' });
   }
 
+  private async runTx<T>(fn: (tx: any) => Promise<T>): Promise<T> {
+    if (this.db && typeof this.db.transaction === 'function') {
+      return this.db.transaction(fn);
+    }
+    return fn(this.db);
+  }
+
   async onBarClose(
     userId: string,
     generator: StreamingSignalGenerator,
@@ -159,25 +166,27 @@ export class PaperTradingEngine {
         ? sig.spotPrice
         : Math.max(5, Math.abs(sig.spotPrice - sig.selectedStrike) + 100);
 
-    await this.db.insert(paperPositions).values({
-      portfolioId: portfolio.id,
-      optionSymbol: sig.optionSymbol,
-      side: sig.signalType === 'BUY' ? 'LONG' : 'SHORT',
-      quantity,
-      avgEntryPrice: fillPrice.toFixed(4),
-      currentPrice: fillPrice.toFixed(4),
-      unrealizedPnl: '0',
-      realizedPnl: '0',
-    });
+    await this.runTx(async (tx) => {
+      await tx.insert(paperPositions).values({
+        portfolioId: portfolio.id,
+        optionSymbol: sig.optionSymbol,
+        side: sig.signalType === 'BUY' ? 'LONG' : 'SHORT',
+        quantity,
+        avgEntryPrice: fillPrice.toFixed(4),
+        currentPrice: fillPrice.toFixed(4),
+        unrealizedPnl: '0',
+        realizedPnl: '0',
+      });
 
-    await this.db.insert(paperTrades).values({
-      portfolioId: portfolio.id,
-      optionSymbol: sig.optionSymbol,
-      side: sig.signalType,
-      entryTime: sig.barTime,
-      entryPrice: fillPrice.toFixed(4),
-      quantity,
-      fillMetadata: { simulated: true, spotPrice: sig.spotPrice },
+      await tx.insert(paperTrades).values({
+        portfolioId: portfolio.id,
+        optionSymbol: sig.optionSymbol,
+        side: sig.signalType,
+        entryTime: sig.barTime,
+        entryPrice: fillPrice.toFixed(4),
+        quantity,
+        fillMetadata: { simulated: true, spotPrice: sig.spotPrice },
+      });
     });
 
     this.logger.info(
@@ -217,29 +226,31 @@ export class PaperTradingEngine {
       openPos.side
     );
 
-    await this.db
-      .update(paperPositions)
-      .set({
-        closedAt: sig.barTime,
-        currentPrice: exitPrice.toFixed(4),
-        realizedPnl: pnl.netPnl.toFixed(2),
-        unrealizedPnl: '0',
-        closedReason: String(sig.metadata['exitReason'] ?? 'signal'),
-      })
-      .where(eq(paperPositions.id, openPos.id));
+    await this.runTx(async (tx) => {
+      await tx
+        .update(paperPositions)
+        .set({
+          closedAt: sig.barTime,
+          currentPrice: exitPrice.toFixed(4),
+          realizedPnl: pnl.netPnl.toFixed(2),
+          unrealizedPnl: '0',
+          closedReason: String(sig.metadata['exitReason'] ?? 'signal'),
+        })
+        .where(eq(paperPositions.id, openPos.id));
 
-    const newCash = Number(portfolio.cashBalance) + pnl.netPnl;
-    const newDailyPnl = Number(portfolio.dailyPnl ?? 0) + pnl.netPnl;
+      const newCash = Number(portfolio.cashBalance) + pnl.netPnl;
+      const newDailyPnl = Number(portfolio.dailyPnl ?? 0) + pnl.netPnl;
 
-    await this.db
-      .update(paperPortfolios)
-      .set({
-        cashBalance: newCash.toFixed(2),
-        totalValue: newCash.toFixed(2),
-        dailyPnl: newDailyPnl.toFixed(2),
-        updatedAt: new Date(),
-      })
-      .where(eq(paperPortfolios.id, portfolio.id));
+      await tx
+        .update(paperPortfolios)
+        .set({
+          cashBalance: newCash.toFixed(2),
+          totalValue: newCash.toFixed(2),
+          dailyPnl: newDailyPnl.toFixed(2),
+          updatedAt: new Date(),
+        })
+        .where(eq(paperPortfolios.id, portfolio.id));
+    });
 
     this.logger.info(
       { symbol: openPos.optionSymbol, netPnl: pnl.netPnl.toFixed(2) },

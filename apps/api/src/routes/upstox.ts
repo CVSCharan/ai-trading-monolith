@@ -3,9 +3,14 @@
 // ============================================
 
 import { Elysia, t } from 'elysia';
+import { eq } from 'drizzle-orm';
 import { config } from '../config';
+import { db } from '../db';
+import { upstoxCredentials } from '../db/schema';
 import { authPlugin, requireAuth, requireRole } from '../middleware/auth-middleware';
+import { logAuditEvent } from '../middleware/audit-middleware';
 import { createRateLimitPlugin } from '../middleware/rate-limit-middleware';
+import { encrypt, getMasterKey } from '../utils/encryption';
 import { UpstoxClient } from '@groww-trading/shared';
 
 function maskSecret(val?: string): string | null {
@@ -22,16 +27,28 @@ export const upstoxRoutes = new Elysia({ prefix: '/api/upstox' })
   .get('/status', async ({ userId, set }) => {
     if (!requireAuth(userId, set)) return { error: 'Unauthorized' };
 
-    const analyticsConfigured = Boolean(config.upstox.analyticsToken);
-    const accessConfigured = Boolean(config.upstox.accessToken);
+    const [dbCred] = await db
+      .select({
+        isActive: upstoxCredentials.isActive,
+        upstoxUserId: upstoxCredentials.upstoxUserId,
+        accessTokenEncrypted: upstoxCredentials.accessTokenEncrypted,
+        analyticsTokenEncrypted: upstoxCredentials.analyticsTokenEncrypted,
+      })
+      .from(upstoxCredentials)
+      .where(eq(upstoxCredentials.userId, userId))
+      .limit(1);
+
+    const analyticsConfigured = Boolean(config.upstox.analyticsToken || dbCred?.analyticsTokenEncrypted);
+    const accessConfigured = Boolean(config.upstox.accessToken || dbCred?.accessTokenEncrypted);
     const oauthConfigured = Boolean(config.upstox.apiKey && config.upstox.apiSecret);
 
     return {
       analyticsConnected: analyticsConfigured,
       tradingConnected: accessConfigured,
       oauthConfigured,
+      upstoxUserId: dbCred?.upstoxUserId ?? null,
       maskedAnalyticsToken: maskSecret(config.upstox.analyticsToken),
-      maskedAccessToken: maskSecret(config.upstox.accessToken),
+      maskedAccessToken: maskSecret(config.upstox.accessToken) ?? (dbCred?.accessTokenEncrypted ? 'DB-ENCRYPTED' : null),
       algoName: config.upstox.algoName ?? null,
       activeDataBroker: config.activeDataBroker,
       activeExecutionBroker: config.activeExecutionBroker,
@@ -155,8 +172,46 @@ export const upstoxRoutes = new Elysia({ prefix: '/api/upstox' })
       }
 
       const data = (await res.json()) as { access_token?: string; user_id?: string };
+      if (!data.access_token) {
+        set.status = 502;
+        return { error: 'Upstox OAuth response did not include an access_token' };
+      }
+
+      const masterKey = getMasterKey();
+      const accessTokenEncrypted = encrypt(data.access_token, masterKey);
+      const expiresAt = new Date(Date.now() + 24 * 3600_000);
+
+      await db
+        .insert(upstoxCredentials)
+        .values({
+          userId,
+          upstoxUserId: data.user_id ?? null,
+          accessTokenEncrypted,
+          tokenExpiresAt: expiresAt,
+          isActive: true,
+        })
+        .onConflictDoUpdate({
+          target: upstoxCredentials.userId,
+          set: {
+            upstoxUserId: data.user_id ?? null,
+            accessTokenEncrypted,
+            tokenExpiresAt: expiresAt,
+            isActive: true,
+            updatedAt: new Date(),
+          },
+        });
+
+      await logAuditEvent({
+        userId,
+        action: 'UPSTOX_OAUTH_CONNECTED',
+        entityType: 'upstox_credentials',
+        entityId: userId,
+        details: { upstoxUserId: data.user_id ?? null },
+      });
+
       return {
-        connected: Boolean(data.access_token),
+        connected: true,
+        persisted: true,
         upstoxUserId: data.user_id ?? null,
         maskedAccessToken: maskSecret(data.access_token),
       };

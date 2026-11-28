@@ -20,7 +20,15 @@ interface WatchlistItem {
   symbol: string;
   exchange: string;
   segment: string;
+  instrumentKey?: string | null;
   notes?: string | null;
+}
+
+function resolveWatchlistQuoteKey(item: WatchlistItem): string | null {
+  if (item.instrumentKey) return item.instrumentKey;
+  if (item.symbol === 'NIFTY') return 'NSE_INDEX|Nifty 50';
+  if (item.symbol === 'BANKNIFTY') return 'NSE_INDEX|Nifty Bank';
+  return null;
 }
 
 interface SearchResult {
@@ -75,6 +83,33 @@ export function WatchlistPanel() {
 
   const items = watchlistData?.items ?? [];
   const results = searchData?.results ?? [];
+
+  const { data: liveQuotes } = useQuery<Record<string, { ltp: number }>>({
+    queryKey: ['watchlist-quotes', items.map((i) => i.symbol).join(',')],
+    enabled: items.length > 0,
+    refetchInterval: 15_000,
+    queryFn: async () => {
+      const out: Record<string, { ltp: number }> = {};
+      await Promise.all(
+        items.slice(0, 6).map(async (item) => {
+          const key = resolveWatchlistQuoteKey(item);
+          if (!key) return;
+          try {
+            const res = await fetchJson<{ quote?: { ltp?: number } | null }>(
+              `/api/market/quote?instrumentKey=${encodeURIComponent(key)}`,
+              { credentials: 'include' }
+            );
+            if (res.quote?.ltp && res.quote.ltp > 0) {
+              out[item.symbol] = { ltp: res.quote.ltp };
+            }
+          } catch {
+            // Skip unavailable quote without breaking watchlist
+          }
+        })
+      );
+      return out;
+    },
+  });
 
   return (
     <Card>
@@ -167,6 +202,11 @@ export function WatchlistPanel() {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-semibold text-white">{item.symbol}</span>
                     <Badge variant="info">{item.exchange}</Badge>
+                    {liveQuotes?.[item.symbol]?.ltp && (
+                      <span className="font-mono text-xs text-emerald-400">
+                        ₹{liveQuotes[item.symbol]!.ltp.toLocaleString('en-IN')}
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-slate-500">{item.segment}</div>
                 </div>

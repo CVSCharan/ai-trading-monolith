@@ -1,7 +1,13 @@
-import { desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { getISTDateString, getISTTimeString } from '@groww-trading/shared';
 import { db } from '../db';
-import { aiMarketBriefs, marketNews, watchlists } from '../db/schema';
+import {
+  aiMarketBriefs,
+  marketNews,
+  paperPortfolios,
+  tradeJournalEntries,
+  watchlists,
+} from '../db/schema';
 import { logger } from '../logger';
 
 export type NewsSentiment = 'BULLISH' | 'BEARISH' | 'NEUTRAL';
@@ -260,20 +266,90 @@ export async function refreshWatchlistNews(userId: string): Promise<{ inserted: 
   return { inserted, briefId: brief?.id ?? null };
 }
 
+export interface NseMarketPulse {
+  indiaVix: number | null;
+  fiiNetCr: number | null;
+  diiNetCr: number | null;
+}
+
+export async function fetchNseMarketPulse(): Promise<NseMarketPulse> {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    Accept: 'application/json',
+  };
+  let indiaVix: number | null = null;
+  let fiiNetCr: number | null = null;
+  let diiNetCr: number | null = null;
+
+  try {
+    const res = await fetch('https://www.nseindia.com/api/allIndices', {
+      headers,
+      signal: AbortSignal.timeout(4_000),
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { data?: Array<{ index?: string; last?: number }> };
+      const vixRow = json.data?.find((d) => d.index?.toUpperCase() === 'INDIA VIX');
+      if (vixRow?.last && Number.isFinite(vixRow.last)) {
+        indiaVix = Number(vixRow.last);
+      }
+    }
+  } catch {
+    // NSE may throttle headless requests; fallback gracefully
+  }
+
+  try {
+    const res = await fetch('https://www.nseindia.com/api/fiidiiTradeReact', {
+      headers,
+      signal: AbortSignal.timeout(4_000),
+    });
+    if (res.ok) {
+      const rows = (await res.json()) as Array<{ category?: string; netValue?: string | number }>;
+      for (const r of rows) {
+        const cat = r.category?.toUpperCase() ?? '';
+        const val = Number(r.netValue);
+        if (!Number.isFinite(val)) continue;
+        if (cat.includes('FII') || cat.includes('FPI')) fiiNetCr = val;
+        if (cat.includes('DII')) diiNetCr = val;
+      }
+    }
+  } catch {
+    // Fallback gracefully
+  }
+
+  return { indiaVix, fiiNetCr, diiNetCr };
+}
+
 export async function generateAndStoreMarketBrief(userId: string, pinnedSymbols: string[]) {
-  const recent = await db
-    .select()
-    .from(marketNews)
-    .where(or(isNull(marketNews.symbol), inArray(marketNews.symbol, pinnedSymbols)))
-    .orderBy(desc(marketNews.publishedAt))
-    .limit(20);
+  const [recent, pulse, portfolioRows, journalRows] = await Promise.all([
+    db
+      .select()
+      .from(marketNews)
+      .where(or(isNull(marketNews.symbol), inArray(marketNews.symbol, pinnedSymbols)))
+      .orderBy(desc(marketNews.publishedAt))
+      .limit(20),
+    fetchNseMarketPulse(),
+    db
+      .select({ dailyPnl: paperPortfolios.dailyPnl })
+      .from(paperPortfolios)
+      .where(and(eq(paperPortfolios.userId, userId), eq(paperPortfolios.isActive, true)))
+      .limit(1),
+    db
+      .select({ followedRules: tradeJournalEntries.followedRules })
+      .from(tradeJournalEntries)
+      .where(
+        and(
+          eq(tradeJournalEntries.userId, userId),
+          gte(tradeJournalEntries.updatedAt, new Date(Date.now() - 24 * 3600_000))
+        )
+      ),
+  ]);
 
   const bullishCount = recent.filter((n) => n.sentiment === 'BULLISH').length;
   const bearishCount = recent.filter((n) => n.sentiment === 'BEARISH').length;
   const highImpactCount = recent.filter((n) => n.impactLevel === 'HIGH').length;
 
   const marketRegime =
-    highImpactCount >= 4
+    (pulse.indiaVix !== null && pulse.indiaVix >= 20) || highImpactCount >= 4
       ? 'HIGH_VOLATILITY'
       : Math.abs(bullishCount - bearishCount) >= 3
         ? 'TRENDING'
@@ -284,10 +360,13 @@ export async function generateAndStoreMarketBrief(userId: string, pinnedSymbols:
   const briefType = istTime < '09:15' ? 'PRE_MARKET' : istTime >= '15:30' ? 'POST_MARKET' : 'INTRADAY';
   const istDate = getISTDateString(now);
 
+  const vixTag = pulse.indiaVix !== null ? ` · India VIX ${pulse.indiaVix.toFixed(2)}` : '';
+  const fiiTag = pulse.fiiNetCr !== null ? ` · FII Net ₹${pulse.fiiNetCr.toFixed(0)} Cr` : '';
+
   const headline =
     recent.length === 0
-      ? `Market Pulse (${istDate}): No new RSS catalysts ingested yet — stick to 9/21 EMA & VWAP price action.`
-      : `${briefType.replace('_', ' ')} Bias: ${bullishCount} Bullish vs ${bearishCount} Bearish catalysts (${marketRegime})`;
+      ? `Market Pulse (${istDate}):${vixTag}${fiiTag} — Stick to 9/21 EMA & VWAP price action.`
+      : `${briefType.replace('_', ' ')} Bias: ${bullishCount} Bullish vs ${bearishCount} Bearish (${marketRegime})${vixTag}`;
 
   const highlights = pinnedSymbols.slice(0, 6).map((sym) => {
     const symNews = recent.filter((n) => n.symbol === sym);
@@ -300,9 +379,17 @@ export async function generateAndStoreMarketBrief(userId: string, pinnedSymbols:
     };
   });
 
+  const journalTotal = journalRows.length;
+  const adherencePct =
+    journalTotal > 0
+      ? `${((journalRows.filter((j) => j.followedRules).length / journalTotal) * 100).toFixed(0)}%`
+      : 'N/A';
+  const paperDailyPnl = Number(portfolioRows[0]?.dailyPnl ?? 0);
+
   const summaryLines = [
-    `**Regime:** \`${marketRegime}\` | **Signals scanned:** ${recent.length} (${highImpactCount} high-impact)`,
+    `**Regime:** \`${marketRegime}\` | **Signals scanned:** ${recent.length} (${highImpactCount} high-impact)${vixTag}${fiiTag}`,
     `**Watchlist coverage:** ${pinnedSymbols.join(', ')}`,
+    `**Trader Scorecard:** Paper Daily P&L ₹${paperDailyPnl.toFixed(2)} | Journal Rule Adherence: ${adherencePct} (${journalTotal} entries)`,
     ...recent.slice(0, 4).map((n) => `- [${n.sentiment}] **${n.symbol ?? 'MARKET'}**: ${n.title}`),
   ];
 

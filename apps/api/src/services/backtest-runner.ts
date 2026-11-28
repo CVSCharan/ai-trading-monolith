@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, eq, gte, lte, sql } from 'drizzle-orm';
 import {
   runBacktest,
   type BacktestConfig,
@@ -25,21 +25,30 @@ let timer: ReturnType<typeof setInterval> | null = null;
 async function processNextQueuedBacktest(): Promise<void> {
   if (activeCount >= MAX_CONCURRENT) return;
 
-  const [job] = await db
-    .select()
-    .from(backtestRuns)
-    .where(eq(backtestRuns.status, 'queued'))
-    .orderBy(asc(backtestRuns.createdAt))
-    .limit(1);
+  // Atomically claim the oldest queued job using FOR UPDATE SKIP LOCKED (GAP-30)
+  const claimed = await db.transaction(async (tx) => {
+    const rows = await tx.execute(sql`
+      UPDATE backtest_runs
+      SET status = 'running', started_at = NOW()
+      WHERE id = (
+        SELECT id FROM backtest_runs
+        WHERE status = 'queued'
+        ORDER BY created_at ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      )
+      RETURNING id, strategy_id AS "strategyId", start_date AS "startDate", end_date AS "endDate", initial_capital AS "initialCapital"
+    `);
+    return rows[0] as
+      | { id: string; strategyId: string; startDate: string; endDate: string; initialCapital: string }
+      | undefined;
+  });
 
-  if (!job) return;
+  if (!claimed) return;
+  const job = claimed;
 
   activeCount++;
   try {
-    await db
-      .update(backtestRuns)
-      .set({ status: 'running', startedAt: new Date() })
-      .where(eq(backtestRuns.id, job.id));
 
     const [strategy] = await db
       .select()
@@ -63,8 +72,8 @@ async function processNextQueuedBacktest(): Promise<void> {
       throw new Error(`Index instrument not found for ${strategy.underlyingSymbol}`);
     }
 
-    const startDt = new Date(`${job.startDate}T00:00:00.000Z`);
-    const endDt = new Date(`${job.endDate}T23:59:59.999Z`);
+    const startDt = new Date(`${job.startDate}T00:00:00.000+05:30`);
+    const endDt = new Date(`${job.endDate}T23:59:59.999+05:30`);
 
     const dbCandles = await db
       .select()
