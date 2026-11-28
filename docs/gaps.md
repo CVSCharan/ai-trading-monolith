@@ -492,41 +492,41 @@ Industry minimum for HMAC-SHA256 JWT signing key is 32 chars (256 bits). The pla
 
 ## Summary Table
 
-| Gap ID | Category | Severity | Effort | Risk if Ignored |
-|--------|----------|----------|--------|-----------------|
-| GAP-01 | Security / Infrastructure | 🔴 Critical | Medium | Broker API DoS, brute-force |
-| GAP-02 | Security / Regulatory | 🔴 Critical | Low | Tampered audit trail, SEBI violation |
-| GAP-03 | Data Integrity | 🔴 Critical | Low | Double position on crash |
-| GAP-04 | Code Quality | 🔴 Critical | Medium | Silent runtime errors in live orders |
-| GAP-05 | Risk Management | 🔴 Critical | High | Catastrophic single-trade loss |
-| GAP-06 | Database Performance | 🔴 Critical | High | Backtest query degradation over time |
-| GAP-07 | Testing | 🟡 Important | High | Regressions undetected |
-| GAP-08 | CI/CD | 🟡 Important | Low | Lint violations merge silently |
-| GAP-09 | Security / Infrastructure | 🟡 Important | Low | Root container exploitation |
-| GAP-10 | Infrastructure | 🟡 Important | Medium | Static IP compliance risk |
-| GAP-11 | Data Integrity | 🟡 Important | Medium | Stale lot sizes, missing strikes |
-| GAP-12 | Observability | 🟡 Important | Medium | Dashboard shows no engine state |
-| GAP-13 | Database | 🟡 Important | Low | 3M+ rows/year in health table |
-| GAP-14 | Security | 🟡 Important | Medium | Upstox token leakage vector |
-| GAP-15 | Security | 🟡 Important | Low | 2FA brute-force window |
-| GAP-16 | Strategy | 🟢 Nice-to-have | High | Suboptimal sizing |
-| GAP-17 | Strategy | 🟢 Nice-to-have | High | Overfitting risk |
-| GAP-18 | Documentation | 🟢 Nice-to-have | Low | Missing ADR context |
-| GAP-19 | Security | 🟢 Nice-to-have | Medium | Unauthenticated WS messages |
-| GAP-20 | Data Quality | 🟢 Nice-to-have | Low | Poisoned EMA from bad ticks |
-| GAP-21 | Documentation | 🟢 Nice-to-have | Medium | Stale architecture diagram |
-| GAP-22 | Security | 🟢 Nice-to-have | Low | Weak JWT secret default |
-| GAP-23 | Trading Logic / Strategy | 🔴 Critical | Low | `BANKNIFTY` strategies silently trade `NIFTY` options |
-| GAP-24 | Correctness / Timezone | 🔴 Critical | Medium | `getISTDateString()` & `createISTDate()` return wrong day 00:00–05:29 IST |
-| GAP-25 | Security / Privacy | 🔴 Critical | Low | WebSocket `wsPlugin` unauthenticated & broadcasts `live_updates`/`paper_updates` to all users |
-| GAP-26 | Trading Engine / Data | 🔴 Critical | Medium | `LiveBarAggregator` never closes 15:15–15:30 bar & `MarketDataService` feeds non-Bank stocks as `NIFTY` |
-| GAP-27 | Broker Execution | 🔴 Critical | Medium | `GrowwClient` singleton (1 user only), no TOTP refresh mutex, no HTTP error check on reads, fresh idempotency key per call |
-| GAP-28 | Paper Trading / State | 🟡 Important | Medium | `startPaper()` overwrites live session in `activeSessions` & leaves old `paperPortfolios` active; `PaperTradingEngine` hardcodes `'NIFTY'` lot size & 1 lot |
-| GAP-29 | Broker Integration | 🟡 Important | Low | `GET /api/upstox/callback` exchanges OAuth code for `access_token` and discards it |
-| GAP-30 | API / Backtesting | 🟡 Important | Low | `backtest-runner` lacks atomic job claim (`SKIP LOCKED`), uses UTC `Z` for dates, and `backtest.ts` lacks list/delete & `endDate >= startDate` check |
-| GAP-31 | Frontend Resilience | 🟡 Important | Medium | Raw `fetch()` + unguarded `res.json()` in 6+ pages causes `Unexpected end of JSON input` |
-| GAP-32 | Market / Regulatory | 🟡 Important | Low | `OptionChainPage` defaults to `getNextThursday()` (NSE moved NIFTY weekly expiry to Tuesday) in UTC |
-| GAP-33 | API / Strategy | 🟡 Important | Low | Strategy `DELETE` doesn't stop active engine sessions; `clone` skips audit log; `paper-trading.ts` hardcodes ₹40/₹60 costs |
+| Gap ID | Category | Severity | Effort | Status | Risk if Ignored |
+|--------|----------|----------|--------|--------|-----------------|
+| GAP-01 | Security / Infrastructure | 🔴 Critical | Medium | ✅ Fixed (Upstash Redis + fallback) | Broker API DoS, brute-force |
+| GAP-02 | Security / Regulatory | 🔴 Critical | Low | ✅ Fixed (Migration 0004 trigger) | Tampered audit trail, SEBI violation |
+| GAP-03 | Data Integrity | 🔴 Critical | Low | ✅ Fixed (Paper tx) | Double position on crash |
+| GAP-04 | Code Quality | 🔴 Critical | Medium | ⏳ Open | Silent runtime errors in live orders |
+| GAP-05 | Risk Management | 🔴 Critical | High | ✅ Fixed (`onOptionTick` SL) | Catastrophic single-trade loss |
+| GAP-06 | Database Performance | 🔴 Critical | High | ⏳ Open | Backtest query degradation over time |
+| GAP-07 | Testing | 🟡 Important | High | 🔄 Partial (99 unit tests; E2E pending) | Regressions undetected |
+| GAP-08 | CI/CD | 🟡 Important | Low | ⏳ Open | Lint violations merge silently |
+| GAP-09 | Security / Infrastructure | 🟡 Important | Low | ✅ Fixed (Non-root + HEALTHCHECK) | Root container exploitation |
+| GAP-10 | Infrastructure | 🟡 Important | Medium | ✅ Fixed (`apps/engine/Dockerfile`) | Static IP compliance risk |
+| GAP-11 | Data Integrity | 🟡 Important | Medium | ⏳ Open | Stale lot sizes, missing strikes |
+| GAP-12 | Observability | 🟡 Important | Medium | ⏳ Open | Dashboard shows no engine state |
+| GAP-13 | Database | 🟡 Important | Low | ⏳ Open | 3M+ rows/year in health table |
+| GAP-14 | Security | 🟡 Important | Medium | ✅ Fixed (`upstox_credentials`) | Upstox token leakage vector |
+| GAP-15 | Security | 🟡 Important | Low | ⏳ Open | 2FA brute-force window |
+| GAP-16 | Strategy | 🟢 Nice-to-have | High | ⏳ Open | Suboptimal sizing |
+| GAP-17 | Strategy | 🟢 Nice-to-have | High | ⏳ Open | Overfitting risk |
+| GAP-18 | Documentation | 🟢 Nice-to-have | Low | ⏳ Open | Missing ADR context |
+| GAP-19 | Security | 🟢 Nice-to-have | Medium | ✅ Fixed (Merged into GAP-25) | Unauthenticated WS messages |
+| GAP-20 | Data Quality | 🟢 Nice-to-have | Low | ⏳ Open | Poisoned EMA from bad ticks |
+| GAP-21 | Documentation | 🟢 Nice-to-have | Medium | ⏳ Open | Stale architecture diagram |
+| GAP-22 | Security | 🟢 Nice-to-have | Low | ⏳ Open | Weak JWT secret default |
+| GAP-23 | Trading Logic / Strategy | 🔴 Critical | Low | ✅ Fixed | `BANKNIFTY` strategies silently trade `NIFTY` options |
+| GAP-24 | Correctness / Timezone | 🔴 Critical | Medium | ✅ Fixed | `getISTDateString()` & `createISTDate()` return wrong day 00:00–05:29 IST |
+| GAP-25 | Security / Privacy | 🔴 Critical | Low | ✅ Fixed | WebSocket `wsPlugin` unauthenticated & broadcasts `live_updates`/`paper_updates` to all users |
+| GAP-26 | Trading Engine / Data | 🔴 Critical | Medium | ✅ Fixed | `LiveBarAggregator` never closes 15:15–15:30 bar & `MarketDataService` feeds non-Bank stocks as `NIFTY` |
+| GAP-27 | Broker Execution | 🔴 Critical | Medium | ✅ Fixed | `GrowwClient` singleton (1 user only), no TOTP refresh mutex, no HTTP error check on reads, fresh idempotency key per call |
+| GAP-28 | Paper Trading / State | 🟡 Important | Medium | ✅ Fixed | `startPaper()` overwrites live session in `activeSessions` & leaves old `paperPortfolios` active; `PaperTradingEngine` hardcodes `'NIFTY'` lot size & 1 lot |
+| GAP-29 | Broker Integration | 🟡 Important | Low | ✅ Fixed | `GET /api/upstox/callback` exchanges OAuth code for `access_token` and discards it |
+| GAP-30 | API / Backtesting | 🟡 Important | Low | ✅ Fixed | `backtest-runner` lacks atomic job claim (`SKIP LOCKED`), uses UTC `Z` for dates, and `backtest.ts` lacks list/delete & `endDate >= startDate` check |
+| GAP-31 | Frontend Resilience | 🟡 Important | Medium | 🔄 Partial (Core pages migrated) | Raw `fetch()` + unguarded `res.json()` causes `Unexpected end of JSON input` |
+| GAP-32 | Market / Regulatory | 🟡 Important | Low | ⏳ Open | `OptionChainPage` defaults to `getNextThursday()` (NSE moved NIFTY weekly expiry to Tuesday) in UTC |
+| GAP-33 | API / Strategy | 🟡 Important | Low | ⏳ Open | Strategy `DELETE` doesn't stop active engine sessions; `clone` skips audit log; `paper-trading.ts` hardcodes ₹40/₹60 costs |
 
 ---
 

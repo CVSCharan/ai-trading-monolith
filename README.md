@@ -30,6 +30,8 @@ groww-ai-trading-monolith/
 - [Sprint 19 Hardening](docs/progress/sprints/sprint-19.md) — Live trading safety, Operator 2FA & durable state
 - [Gaps Analysis](docs/gaps.md) — Full audit of all known gaps (Critical / Important / Nice-to-have)
 - [Implementation Plan](docs/implementation-plan.md) — 3-phase plan to close all gaps (Sprints 20–24+)
+- [Trader Platform Roadmap](docs/trader-platform-roadmap.md) — Complete trader ecosystem architecture & specs
+- [n8n & Remaining Phases Plan](docs/n8n-and-next-phases-plan.md) — n8n boundary decision & Phase 1/2 specs
 
 ## Quick Start
 
@@ -56,7 +58,7 @@ cp .env.example .env
 bun run db:seed    # Seeds default instruments, strategy templates & cost models
 # bun run db:reset # Resets & re-seeds DB (safe in development)
 
-# Start all microservices in watch mode (Web :5173, API :8000, Engine :8001)
+# Start all microservices in watch mode (Web :5173, API :3000, Engine :3001)
 bun run dev
 ```
 
@@ -77,15 +79,22 @@ bun run db:seed   # Seed default database fixtures
 bun run db:reset  # Truncate tables and re-seed (guarded by ALLOW_PROD_RESET)
 ```
 
-## Strategy & Risk Architecture
+## Strategy, Intelligence & Risk Architecture
 
-**Intraday 9/21 EMA Crossover on NIFTY & BANKNIFTY Options**
+**Multi-Strategy Quantitative Engine (`INDEX_OPTIONS` & `EQUITY_CASH`)**
+- **Strategies**: `EMA_9_21` Crossover, Opening Range Breakout (`ORB_BREAKOUT`), `VWAP_PULLBACK`, and `RSI_MEAN_REVERSION`.
 - **Timeframes**: 5m, 15m, 30m (resampled from 1m ticks, aligned to 09:15 IST).
 - **Execution Windows**: Configurable entry window (09:30–11:30 IST).
 - **Square-Off Invariant**: Mandatory unconditional square-off at **15:00 IST**.
-- **Execution Modes**: Deep ITM Buy (`DEEP_ITM_BUY`), ATM Buy (`ATM_BUY`), ATM Sell (`ATM_SELL`).
-- **Pre-Trade Risk Checks**: Daily loss threshold, position limits, per-trade risk sizing, and lot bounds.
+- **Execution Modes**: Deep ITM Buy (`DEEP_ITM_BUY`), ATM Buy (`ATM_BUY`), ATM Sell (`ATM_SELL`), plus Cash Equity (`EQUITY_CASH`).
+- **Pre-Trade Risk Checks**: Daily loss threshold, position limits, per-trade option stop-loss, and lot bounds.
 - **Kill Switch**: Disarm-first emergency stop with bounded marketable limit order cleanup (`EMERGENCY_LIMIT_BUFFER_PCT`).
+
+**Trader Ecosystem Modules**
+- **Market Pulse & AI (`/pulse`)**: Scheduled RSS + NSE India VIX / FII-DII ingestion (`08:30 IST`, `30m` intraday, `15:35 IST` EOD scorecard) with AI/deterministic sentiment & regime classification.
+- **Zero-to-Trader Academy (`/academy`)**: 6-module progressive trading curriculum with DB-persisted progress & interactive quizzes.
+- **Watchlist & Price Alerts**: Live LTP quotes and `ABOVE`/`BELOW` price alerts per pinned symbol.
+- **Trade Auditor & Journal (`/trade-auditor`)**: Trade-by-trade candlestick inspection with setup, emotion, and rule-adherence journaling.
 
 ## Security & Regulatory Compliance
 
