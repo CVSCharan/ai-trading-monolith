@@ -32,6 +32,7 @@ groww-ai-trading-monolith/
 - [Implementation Plan](docs/implementation-plan.md) — 3-phase plan to close all gaps (Sprints 20–24+)
 - [Trader Platform Roadmap](docs/trader-platform-roadmap.md) — Complete trader ecosystem architecture & specs
 - [n8n & Remaining Phases Plan](docs/n8n-and-next-phases-plan.md) — n8n boundary decision & Phase 1/2 specs
+- [Final Audit Verdict](docs/audit-verdict.md) — Subsystem scorecard, remaining gaps & recommended enhancements
 
 ## Quick Start
 
