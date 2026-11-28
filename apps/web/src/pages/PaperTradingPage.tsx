@@ -29,14 +29,12 @@ export function PaperTradingPage() {
 
   const fetchLiveQuote = async (key: string) => {
     try {
-      const res = await fetch(`/api/market/quote?instrumentKey=${encodeURIComponent(key)}`, {
-        credentials: 'include',
-      });
-      if (!res.ok) return;
-      const json = (await res.json()) as {
+      const json = await fetchJson<{
         marketOpen?: boolean;
         quote?: { ltp?: number } | null;
-      };
+      }>(`/api/market/quote?instrumentKey=${encodeURIComponent(key)}`, {
+        credentials: 'include',
+      });
       if (json.marketOpen !== undefined) setMarketOpen(json.marketOpen);
       if (json.quote?.ltp && json.quote.ltp > 0) {
         setPrice(json.quote.ltp);

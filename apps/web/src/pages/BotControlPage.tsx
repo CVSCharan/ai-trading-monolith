@@ -108,16 +108,13 @@ export function BotControlPage() {
   });
 
   const killMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/live/emergency-stop', {
+    mutationFn: () =>
+      fetchJson('/api/live/emergency-stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ reason: 'Bot Control Center Kill Switch' }),
-      });
-      if (!res.ok) throw new Error('Kill switch failed');
-      return res.json();
-    },
+      }),
     onSuccess: () => setFeedback('Emergency stop queued. Broker cancellations and protected limit close orders are processing; verify positions are flat.'),
     onError: (e: Error) => setFeedback(e.message),
   });

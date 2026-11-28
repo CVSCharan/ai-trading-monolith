@@ -76,14 +76,11 @@ export function ProfilePage() {
   });
 
   const revokeSessionMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/auth/sessions/${id}`, {
+    mutationFn: (id: string) =>
+      fetchJson(`/api/auth/sessions/${id}`, {
         method: 'DELETE',
         credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Failed to revoke session');
-      return res.json();
-    },
+      }),
     onSuccess: () => {
       setFeedback({ variant: 'info', text: 'Device session revoked.' });
       void refetchSessions();
@@ -92,14 +89,11 @@ export function ProfilePage() {
   });
 
   const logoutAllMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/auth/logout-all', {
+    mutationFn: () =>
+      fetchJson('/api/auth/logout-all', {
         method: 'POST',
         credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Failed to log out all devices');
-      return res.json();
-    },
+      }),
     onSuccess: async () => {
       await logout();
     },
@@ -111,15 +105,12 @@ export function ProfilePage() {
       if (newPassword !== confirmPassword) {
         throw new Error('New passwords do not match.');
       }
-      const res = await fetch('/api/auth/change-password', {
+      return fetchJson<{ message?: string }>('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to update password');
-      return json;
     },
     onSuccess: () => {
       setCurrentPassword('');

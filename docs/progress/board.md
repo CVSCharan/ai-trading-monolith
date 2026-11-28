@@ -15,6 +15,8 @@
 
 | Ticket | Title | Completed |
 |--------|-------|-----------|
+| S19-019 | Strict engine core type safety: eliminated `: any` in `command-processor`, `live-trading`, `paper-trading`, `index.ts` (`GAP-04`) | 2026-11-28 |
+| S19-020 | Frontend API resilience: migrated all remaining pages & components to unified `fetchJson` (`GAP-31`) | 2026-11-28 |
 | S19-015 | Atomic database transactions for live order & position state (`GAP-03`) | 2026-11-28 |
 | S19-016 | Granular sliding-window rate limiting on sensitive 2FA & auth endpoints (`GAP-15`) | 2026-11-28 |
 | S19-017 | Bad-tick & flash-spike anomaly filter in `LiveBarAggregator` (`GAP-20`) | 2026-11-28 |

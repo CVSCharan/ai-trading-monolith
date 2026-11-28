@@ -40,7 +40,7 @@ export class PaperTradingEngine {
 
   async onBarClose(
     userId: string,
-    generator: StreamingSignalGenerator,
+    generator: { processBar: (bar: CandleResampled, prevBar: CandleResampled | null) => Signal[] },
     bar: CandleResampled,
     instruments: Instrument[],
     optionPriceLookup?: (symbol: string, spotPrice: number) => number

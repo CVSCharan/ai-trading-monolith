@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type pino from 'pino';
-import type { Signal } from '@groww-trading/strategy-core';
+import type { Signal, StreamingSignalGenerator, CandleResampled } from '@groww-trading/strategy-core';
+import type { Instrument } from '@groww-trading/shared';
 import type { GrowwClient } from './groww-client';
 import { livePositions, liveFills } from '../../../api/src/db/schema';
 import { eq, and, isNull, gte } from 'drizzle-orm';
@@ -714,18 +715,9 @@ export class LiveTradingEngine {
    */
   async onBarClose(
     userId: string,
-    generator: any,
-    closedBar: {
-      instrumentId: number;
-      timeframe: string;
-      barTime: Date;
-      open: number;
-      high: number;
-      low: number;
-      close: number;
-      volume: number;
-    },
-    instruments: any[],
+    generator: { processBar: (bar: CandleResampled, prevBar: CandleResampled | null) => Signal[] },
+    closedBar: CandleResampled,
+    instruments: Instrument[],
     risk: LiveRiskConfig = {
       capital: 1000000,
       maxDailyLossPct: 2,
@@ -735,7 +727,7 @@ export class LiveTradingEngine {
     },
     optionPriceLookup?: (signal: Signal) => Promise<number | undefined> | number | undefined
   ): Promise<Signal[]> {
-    const signals: Signal[] = generator.processBar(closedBar);
+    const signals: Signal[] = generator.processBar(closedBar, null);
     for (const sig of signals) {
       const idempotencyKey = `${userId}-${sig.optionSymbol}-${sig.signalType}-${closedBar.barTime.getTime()}`;
       let optionPrice: number | undefined;

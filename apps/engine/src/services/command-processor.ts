@@ -16,6 +16,7 @@ import {
 } from '../../../api/src/db/schema';
 import { eq, and, inArray, isNull, desc, sql } from 'drizzle-orm';
 import { GrowwClient } from './groww-client';
+import type { LiveTradingEngine } from './live-trading';
 import {
   MultiStrategyEvaluator,
   StreamingSignalGenerator,
@@ -27,11 +28,73 @@ import {
   type StrategyTemplateId,
 } from '@groww-trading/strategy-core';
 
+export interface EngineCommand<T = unknown> {
+  id: string;
+  userId: string;
+  commandType: string;
+  payload?: T;
+  status: string;
+  result?: unknown;
+  errorMessage?: string | null;
+  createdAt?: Date;
+  processedAt?: Date | null;
+}
+
+export interface StartPaperPayload {
+  strategyIds?: string[];
+  initialCapital?: number;
+}
+
+export interface StopPaperPayload {
+  strategyIds?: string[];
+}
+
+export interface EnableLivePayload {
+  strategyIds?: string[];
+  twoFactorVerifiedAt?: string;
+}
+
+export interface DisableLivePayload {
+  reason?: string;
+}
+
+export interface EmergencyStopPayload {
+  cancelOrders?: boolean;
+  closePositions?: boolean;
+  reason?: string;
+}
+
+export interface UpdateRiskPayload {
+  [key: string]: unknown;
+}
+
+export interface StrategyRunner {
+  processBar: (bar: CandleResampled, prevBar: CandleResampled | null) => Signal[];
+}
+
+export interface GeneratorSession {
+  generator: StrategyRunner;
+  strategy: Record<string, any>;
+  instruments: Instrument[];
+  position: unknown;
+}
+
+export interface ActiveSessionGroup {
+  paper?: {
+    portfolioId: string;
+    generators: Map<string, GeneratorSession>;
+  };
+  live?: {
+    generators: Map<string, GeneratorSession>;
+    enabledAt: Date;
+  };
+}
+
 function createStrategyRunner(
   strategy: StrategyConfig,
   instruments: Instrument[],
   runType: 'paper' | 'live'
-): { processBar(bar: CandleResampled, prevBar?: CandleResampled | null): Signal[] } {
+): StrategyRunner {
   const riskAny = strategy.risk as unknown as {
     strategyTemplate?: StrategyTemplateId;
     assetClass?: AssetClass;
@@ -50,7 +113,7 @@ function createStrategyRunner(
   );
 
   return {
-    processBar(bar: CandleResampled): Signal[] {
+    processBar(bar: CandleResampled, _prevBar: CandleResampled | null): Signal[] {
       const rawSignals = evaluator.processBar(bar);
       return rawSignals.map((s) => ({
         strategyId: strategy.id ?? '',
@@ -84,9 +147,9 @@ import { config } from '../config';
 
 export class CommandProcessor {
   private logger: pino.Logger;
-  private activeSessions: Map<string, { paper?: any; live?: any }> = new Map();
+  private activeSessions: Map<string, ActiveSessionGroup> = new Map();
   private errorCount = 0;
-  private liveEngine?: any;
+  private liveEngine?: LiveTradingEngine;
 
   constructor(
     private db: any,
@@ -96,15 +159,15 @@ export class CommandProcessor {
     this.logger = logger.child({ component: 'CommandProcessor' });
   }
 
-  setLiveEngine(liveEngine: any): void {
+  setLiveEngine(liveEngine: LiveTradingEngine): void {
     this.liveEngine = liveEngine;
   }
 
-  getActiveSessions(): Map<string, { paper?: any; live?: any }> {
+  getActiveSessions(): Map<string, ActiveSessionGroup> {
     return this.activeSessions;
   }
 
-  async processCommand(cmd: any): Promise<void> {
+  async processCommand(cmd: EngineCommand): Promise<void> {
     this.logger.info({ commandId: cmd.id, type: cmd.commandType, userId: cmd.userId }, 'Processing command');
 
     try {
@@ -114,29 +177,29 @@ export class CommandProcessor {
         .set({ status: 'processing', processedAt: new Date() })
         .where(eq(engineCommands.id, cmd.id));
 
-      let result: any = {};
+      let result: Record<string, unknown> = {};
 
       switch (cmd.commandType) {
         case 'start_paper':
-          result = await this.startPaper(cmd.userId, cmd.payload);
+          result = await this.startPaper(cmd.userId, (cmd.payload ?? {}) as unknown as StartPaperPayload);
           break;
         case 'stop_paper':
-          result = await this.stopPaper(cmd.userId, cmd.payload);
+          result = await this.stopPaper(cmd.userId, (cmd.payload ?? {}) as unknown as StopPaperPayload);
           break;
         case 'enable_live':
-          result = await this.enableLive(cmd.userId, cmd.payload);
+          result = await this.enableLive(cmd.userId, (cmd.payload ?? {}) as unknown as EnableLivePayload);
           break;
         case 'disable_live':
-          result = await this.disableLive(cmd.userId, cmd.payload);
+          result = await this.disableLive(cmd.userId, (cmd.payload ?? {}) as unknown as DisableLivePayload);
           break;
         case 'emergency_stop':
-          result = await this.emergencyStop(cmd.userId, cmd.payload);
+          result = await this.emergencyStop(cmd.userId, (cmd.payload ?? {}) as unknown as EmergencyStopPayload);
           break;
         case 'update_risk':
-          result = await this.updateRisk(cmd.userId, cmd.payload);
+          result = await this.updateRisk(cmd.userId, (cmd.payload ?? {}) as unknown as UpdateRiskPayload);
           break;
         default:
-          throw new Error(`Unknown command type: ${cmd.commandType}`);
+          throw new Error(`Unknown command type: ${(cmd as EngineCommand).commandType}`);
       }
 
       // Mark completed
@@ -158,8 +221,8 @@ export class CommandProcessor {
     }
   }
 
-  private async startPaper(userId: string, payload: any): Promise<any> {
-    const { strategyIds, initialCapital = 1000000 } = payload;
+  private async startPaper(userId: string, payload: StartPaperPayload): Promise<Record<string, unknown>> {
+    const { strategyIds = [], initialCapital = 1000000 } = payload;
 
     // Deactivate prior active paper portfolios so PaperTradingEngine always selects the current one (GAP-28)
     await this.db
@@ -197,7 +260,7 @@ export class CommandProcessor {
     return { portfolioId: portfolio.id, strategies: strategyIds };
   }
 
-  private async stopPaper(userId: string, payload: any): Promise<any> {
+  private async stopPaper(userId: string, payload: StopPaperPayload): Promise<Record<string, unknown>> {
     const session = this.activeSessions.get(userId);
     if (!session?.paper) {
       return { message: 'No active paper session' };
@@ -221,7 +284,7 @@ export class CommandProcessor {
     return { stopped: true };
   }
 
-  private async enableLive(userId: string, payload: any): Promise<any> {
+  private async enableLive(userId: string, payload: EnableLivePayload): Promise<Record<string, unknown>> {
     if (process.env['ENABLE_LIVE_TRADING'] !== 'true') {
       throw new Error('Live trading is disabled on the engine. Set ENABLE_LIVE_TRADING=true to permit live execution.');
     }
@@ -252,7 +315,7 @@ export class CommandProcessor {
     }
 
     // Initialize strategy runners for live trading
-    const generators = new Map();
+    const generators = new Map<string, GeneratorSession>();
     for (const strategyId of strategyIds) {
       const strategy = await this.loadStrategy(strategyId);
       if (!strategy) continue;
@@ -286,7 +349,7 @@ export class CommandProcessor {
     return { enabled: true, liveStrategies: strategyIds, twoFactorVerifiedAt: payload.twoFactorVerifiedAt };
   }
 
-  private async disableLive(userId: string, payload: any): Promise<any> {
+  private async disableLive(userId: string, _payload?: DisableLivePayload): Promise<Record<string, unknown>> {
     const session = this.activeSessions.get(userId);
     if (!session?.live) {
       return { message: 'No active live session' };
@@ -300,7 +363,7 @@ export class CommandProcessor {
     return { disabled: true };
   }
 
-  private async emergencyStop(userId: string, payload: any): Promise<any> {
+  private async emergencyStop(userId: string, payload?: EmergencyStopPayload): Promise<Record<string, unknown>> {
     // Missing flags must never turn a kill-switch command into a session-only
     // stop. This also makes commands created by older API versions fail safe.
     const {
@@ -346,14 +409,19 @@ export class CommandProcessor {
     return { emergencyStop: true, reason, closeOrdersRequested: Boolean(closePositions) };
   }
 
-  private async updateRisk(userId: string, payload: any): Promise<any> {
+  private async updateRisk(userId: string, payload: UpdateRiskPayload): Promise<Record<string, unknown>> {
     // Update risk parameters for active sessions
     const session = this.activeSessions.get(userId);
     if (!session) return { updated: false };
 
     // Apply to generators
-    for (const [strategyId, data] of session.paper?.generators || []) {
-      data.generator.config.risk = { ...data.generator.config.risk, ...payload };
+    if (session.paper?.generators) {
+      for (const [, data] of session.paper.generators) {
+        const gen = data.generator as unknown as { config?: { risk?: Record<string, unknown> } };
+        if (gen.config) {
+          gen.config.risk = { ...gen.config.risk, ...payload };
+        }
+      }
     }
 
     return { updated: true };
@@ -400,7 +468,7 @@ export class CommandProcessor {
       .from(instrumentsTable)
       .where(eq(instrumentsTable.isActive, true));
 
-    return rows.map((i: any) => ({
+    return rows.map((i: typeof instrumentsTable.$inferSelect) => ({
       id: i.id,
       symbol: i.symbol,
       instrumentType: i.instrumentType,

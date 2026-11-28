@@ -12,11 +12,11 @@ import pino from 'pino';
 import { config } from './config';
 import { engineCommands, engineState, engineHealth, reconciliationState } from './db/command-state';
 import { eq, and, lt, isNull, desc, sql } from 'drizzle-orm';
-import { StreamingSignalGenerator } from '@groww-trading/strategy-core';
+import { StreamingSignalGenerator, type Signal, type CandleResampled } from '@groww-trading/strategy-core';
 import { WebSocketManager } from './services/websocket-manager';
 import { AlertingService } from './services/alerting';
 import { GrowwClient } from './services/groww-client';
-import { CommandProcessor } from './services/command-processor';
+import { CommandProcessor, type GeneratorSession } from './services/command-processor';
 import { ReconciliationService } from './services/reconciliation';
 import { MarketDataService } from './services/market-data';
 import { PaperTradingEngine } from './services/paper-trading';
@@ -139,7 +139,7 @@ async function startEngine() {
     for (const [userId, session] of commandProcessor.getActiveSessions().entries()) {
       // 1. Process active paper trading strategies
       const paperGenerators = session.paper?.generators as
-        | Map<string, { generator: any; strategy: any; instruments: any[] }>
+        | Map<string, GeneratorSession>
         | undefined;
       if (paperGenerators) {
         for (const entry of paperGenerators.values()) {
@@ -153,7 +153,7 @@ async function startEngine() {
                 entry.generator,
                 {
                   instrumentId: entry.instruments[0]?.id ?? 1,
-                  timeframe: closedBar.timeframe,
+                  timeframe: closedBar.timeframe as CandleResampled['timeframe'],
                   barTime: closedBar.barTime,
                   open: closedBar.open,
                   high: closedBar.high,
@@ -175,10 +175,10 @@ async function startEngine() {
 
       // 2. Process active live trading strategies (when ENABLE_LIVE_TRADING=true)
       const liveGenerators = session.live?.generators as
-        | Map<string, { generator: any; strategy: any; instruments: any[] }>
+        | Map<string, GeneratorSession>
         | undefined;
       if (liveGenerators && process.env['ENABLE_LIVE_TRADING'] === 'true') {
-        const resolveOptionPrice = async (sig: any): Promise<number | undefined> => {
+        const resolveOptionPrice = async (sig: Signal): Promise<number | undefined> => {
           const sym = sig.optionSymbol;
           if (!sym) return undefined;
 
@@ -237,7 +237,7 @@ async function startEngine() {
                 entry.generator,
                 {
                   instrumentId: entry.instruments[0]?.id ?? 1,
-                  timeframe: closedBar.timeframe,
+                  timeframe: closedBar.timeframe as CandleResampled['timeframe'],
                   barTime: closedBar.barTime,
                   open: closedBar.open,
                   high: closedBar.high,
