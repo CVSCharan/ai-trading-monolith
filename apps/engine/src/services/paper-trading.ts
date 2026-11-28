@@ -135,7 +135,7 @@ export class PaperTradingEngine {
     const maxDailyLossPct = limits.maxDailyLossPct ?? 2;
     const maxPositions = limits.maxPositions ?? 3;
 
-    const dayStart = Number(portfolio.dayStartValue ?? portfolio.initialCapital);
+    const dayStart = Number(portfolio.dayStartValue ?? portfolio.cashBalance);
     const dailyPnl = Number(portfolio.dailyPnl ?? 0);
     if (dayStart > 0 && dailyPnl <= -(dayStart * (maxDailyLossPct / 100))) {
       return false;
