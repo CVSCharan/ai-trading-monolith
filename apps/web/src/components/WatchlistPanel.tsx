@@ -5,7 +5,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Bookmark, Plus, Search, Trash2, TrendingUp } from 'lucide-react';
+import { Bell, Bookmark, Plus, Search, Trash2, TrendingUp } from 'lucide-react';
+import { Select } from './ui/select';
 import { useAuth } from '../context/AuthContext';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -43,6 +44,42 @@ export function WatchlistPanel() {
   const { isDemo } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [alertSymbol, setAlertSymbol] = useState('NIFTY');
+  const [alertCond, setAlertCond] = useState<'ABOVE' | 'BELOW'>('ABOVE');
+  const [alertPrice, setAlertPrice] = useState('');
+  const [showAlertForm, setShowAlertForm] = useState(false);
+
+  const { data: alertsData, refetch: refetchAlerts } = useQuery<{
+    items: Array<{ id: string; symbol: string; condition: string; targetPrice: string }>;
+  }>({
+    queryKey: ['price-alerts'],
+    queryFn: () => fetchJson('/api/alerts', { credentials: 'include' }),
+  });
+
+  const createAlertMutation = useMutation({
+    mutationFn: () =>
+      fetchJson('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          symbol: alertSymbol,
+          condition: alertCond,
+          targetPrice: Number(alertPrice),
+        }),
+      }),
+    onSuccess: () => {
+      setAlertPrice('');
+      setShowAlertForm(false);
+      void refetchAlerts();
+    },
+  });
+
+  const deleteAlertMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`/api/alerts/${id}`, { method: 'DELETE', credentials: 'include' }),
+    onSuccess: () => void refetchAlerts(),
+  });
 
   const { data: watchlistData, isLoading, error, refetch } = useQuery<{ items: WatchlistItem[] }>({
     queryKey: ['watchlist'],
@@ -122,14 +159,72 @@ export function WatchlistPanel() {
           <CardDescription>Pinned NIFTY / BANKNIFTY &amp; F&amp;O contracts</CardDescription>
         </div>
         {!isDemo && (
-          <Button variant="outline" size="sm" onClick={() => setShowSearch((v) => !v)}>
-            <Plus className="h-3.5 w-3.5" />
-            Pin Symbol
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowAlertForm((v) => !v)}>
+              <Bell className="h-3.5 w-3.5" />
+              Alert
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowSearch((v) => !v)}>
+              <Plus className="h-3.5 w-3.5" />
+              Pin Symbol
+            </Button>
+          </div>
         )}
       </CardHeader>
       <CardContent className="space-y-3">
         {error && <QueryErrorState error={error} onRetry={() => void refetch()} title={items.length ? 'Showing the last loaded watchlist' : 'Watchlist is unavailable'} />}
+        {showAlertForm && !isDemo && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+            <Select value={alertSymbol} onChange={(e) => setAlertSymbol(e.target.value)} className="w-auto h-8 text-xs">
+              {Array.from(new Set(['NIFTY', 'BANKNIFTY', ...items.map((i) => i.symbol)])).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </Select>
+            <Select value={alertCond} onChange={(e) => setAlertCond(e.target.value as 'ABOVE' | 'BELOW')} className="w-auto h-8 text-xs">
+              <option value="ABOVE">Crosses Above</option>
+              <option value="BELOW">Crosses Below</option>
+            </Select>
+            <Input
+              type="number"
+              step="0.05"
+              value={alertPrice}
+              onChange={(e) => setAlertPrice(e.target.value)}
+              placeholder="Target ₹"
+              className="w-28 h-8 text-xs"
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!alertPrice || Number(alertPrice) <= 0 || createAlertMutation.isPending}
+              onClick={() => createAlertMutation.mutate()}
+            >
+              Save Alert
+            </Button>
+          </div>
+        )}
+        {(alertsData?.items ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {alertsData!.items.map((a) => (
+              <span
+                key={a.id}
+                className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-300"
+              >
+                <Bell className="h-3 w-3" />
+                {a.symbol} {a.condition === 'ABOVE' ? '≥' : '≤'} ₹{a.targetPrice}
+                {!isDemo && (
+                  <button
+                    type="button"
+                    onClick={() => deleteAlertMutation.mutate(a.id)}
+                    className="ml-1 text-amber-400/70 hover:text-rose-400"
+                    aria-label="Delete alert"
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
         {showSearch && !isDemo && (
           <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/70 p-3">
             <div className="relative">

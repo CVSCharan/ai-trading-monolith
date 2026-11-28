@@ -34,6 +34,42 @@ export class SlidingWindowRateLimiter {
   }
 }
 
+async function checkUpstashRedisRateLimit(
+  key: string,
+  maxRequests: number,
+  windowMs: number
+): Promise<{ allowed: boolean; retryAfterSec: number } | null> {
+  const url = process.env['UPSTASH_REDIS_REST_URL'];
+  const token = process.env['UPSTASH_REDIS_REST_TOKEN'];
+  if (!url || !token) return null;
+
+  try {
+    const res = await fetch(`${url.replace(/\/$/, '')}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(1_500),
+      body: JSON.stringify([
+        ['INCR', key],
+        ['PEXPIRE', key, String(windowMs), 'NX'],
+        ['PTTL', key],
+      ]),
+    });
+    if (!res.ok) return null;
+    const results = (await res.json()) as Array<{ result?: number }>;
+    const count = Number(results[0]?.result ?? 0);
+    const pttlMs = Math.max(1000, Number(results[2]?.result ?? windowMs));
+    return {
+      allowed: count <= maxRequests,
+      retryAfterSec: count <= maxRequests ? 0 : Math.max(1, Math.ceil(pttlMs / 1000)),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function createRateLimitPlugin(options: {
   name: string;
   maxRequests: number;
@@ -41,13 +77,15 @@ export function createRateLimitPlugin(options: {
 }) {
   const limiter = new SlidingWindowRateLimiter(options.maxRequests, options.windowMs);
 
-  return new Elysia({ name: options.name }).onBeforeHandle(({ request, set }) => {
+  return new Elysia({ name: options.name }).onBeforeHandle(async ({ request, set }) => {
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
       request.headers.get('x-real-ip') ??
       'local';
-    const key = `${options.name}:${ip}`;
-    const result = limiter.check(key);
+    const key = `rl:${options.name}:${ip}`;
+
+    const redisResult = await checkUpstashRedisRateLimit(key, options.maxRequests, options.windowMs);
+    const result = redisResult ?? limiter.check(key);
 
     if (!result.allowed) {
       set.status = 429;

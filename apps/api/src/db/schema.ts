@@ -724,6 +724,25 @@ export type AiMarketBriefRow = typeof aiMarketBriefs.$inferSelect;
 export type AcademyProgressRow = typeof academyProgress.$inferSelect;
 export type TradeJournalEntryRow = typeof tradeJournalEntries.$inferSelect;
 
+// ============================================
+// Watchlist Price Alerts
+// ============================================
+
+export const priceAlerts = pgTable('price_alerts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => user.id, { onDelete: 'cascade' }),
+  symbol: varchar('symbol', { length: 50 }).notNull(),
+  condition: varchar('condition', { length: 10 }).notNull().default('ABOVE'),
+  targetPrice: decimal('target_price', { precision: 12, scale: 2 }).notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  triggeredAt: timestamp('triggered_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userActiveIdx: index('price_alerts_user_active_idx').on(table.userId, table.isActive),
+}));
+
+export type PriceAlertRow = typeof priceAlerts.$inferSelect;
+
 // Import user table from Better Auth (it creates its own)
 import { user, session, account, verification, passkey } from './better-auth-schema';
 export { user, session, account, verification, passkey };

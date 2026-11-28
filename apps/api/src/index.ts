@@ -32,6 +32,7 @@ import { upstoxRoutes } from './routes/upstox';
 import { newsRoutes } from './routes/news';
 import { academyRoutes } from './routes/academy';
 import { journalRoutes } from './routes/journal';
+import { alertRoutes } from './routes/alerts';
 import { auth } from './auth';
 
 const app = new Elysia()
@@ -80,6 +81,7 @@ const app = new Elysia()
   .use(newsRoutes)
   .use(academyRoutes)
   .use(journalRoutes)
+  .use(alertRoutes)
   .all('/api/auth/*', ({ request }) => auth.handler(request))
   .get('/', () => ({ status: 'ok' }))
   .get('/health', async ({ set }) => {

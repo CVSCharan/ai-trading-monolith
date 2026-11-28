@@ -31,6 +31,22 @@ export function BacktestResultsPage() {
 
   const effectiveStrategyId = strategyId || strategiesData?.strategies?.[0]?.id || '';
 
+  const { data: runsData, refetch: refetchRuns } = useQuery<{
+    runs: Array<{
+      id: string;
+      name: string;
+      startDate: string;
+      endDate: string;
+      status: string;
+      totalTrades?: number | null;
+      winRate?: string | null;
+      createdAt: string;
+    }>;
+  }>({
+    queryKey: ['backtest-runs'],
+    queryFn: () => fetchJson('/api/backtest/runs?limit=15', { credentials: 'include' }),
+  });
+
   const runMutation = useMutation({
     mutationFn: () =>
       fetchJson<{ runId: string }>('/api/backtest/run', {
@@ -44,7 +60,10 @@ export function BacktestResultsPage() {
           initialCapital: 1_000_000,
         }),
       }),
-    onSuccess: (d) => setRunId(d.runId),
+    onSuccess: (d) => {
+      setRunId(d.runId);
+      void refetchRuns();
+    },
   });
 
   const promoteMutation = useMutation({
@@ -203,6 +222,38 @@ export function BacktestResultsPage() {
                   ₹{Number(t.netPnl ?? 0).toFixed(2)}
                 </span>
               </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {(runsData?.runs ?? []).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Backtest Runs</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {runsData?.runs.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setRunId(r.id)}
+                className={`flex w-full items-center justify-between rounded-lg border px-4 py-2 text-left text-sm transition-colors ${
+                  runId === r.id
+                    ? 'border-sky-500/50 bg-sky-500/10 text-white'
+                    : 'border-slate-800 text-slate-300 hover:bg-slate-800/60'
+                }`}
+              >
+                <span>
+                  <span className="font-medium text-white">{r.name}</span>
+                  <span className="ml-2 text-xs text-slate-400">
+                    {r.startDate} → {r.endDate}
+                  </span>
+                </span>
+                <span className="text-xs font-mono text-slate-300">
+                  {r.status} · {r.totalTrades ?? 0} trades · {r.winRate ?? '0'}% WR
+                </span>
+              </button>
             ))}
           </CardContent>
         </Card>
